@@ -351,6 +351,7 @@ func addFake(a *app, src music.Source) *library {
 	lib.caps = probeCaps(src)
 	lib.started = true
 	a.libs = append(a.libs, lib)
+	a.allLibs = append(a.allLibs, lib)
 	return lib
 }
 

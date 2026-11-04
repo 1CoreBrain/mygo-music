@@ -32,7 +32,8 @@ func TestTurnOffUpdateChecks(t *testing.T) {
 	defer fakeUpdater(&checks, &downloads, &checked)()
 	a := newTestApp()
 	a.updates = true
-	tt := ui.NewTester(a.settingsView, 560, 2000)
+	a.settingsPage = "updates"
+	tt := ui.NewTester(a.settingsView, 760, 2000)
 	tt.Frame()
 	// The row's title is labelled as its switch is: click the switch, at
 	// the row's end.
@@ -43,7 +44,7 @@ func TestTurnOffUpdateChecks(t *testing.T) {
 		if !ok1 || !ok2 {
 			t.Fatalf("no row %s", title)
 		}
-		tt.ClickAt(560-28-16-12, (top.Y+bottom.Y+bottom.H)/2)
+		tt.ClickAt(760-28-16-12, (top.Y+bottom.Y+bottom.H)/2)
 		tt.Frame()
 	}
 	toggle("Check for Updates Automatically", "Check for a new version once a day")
@@ -69,7 +70,8 @@ func TestCheckForUpdatesFromSettings(t *testing.T) {
 	defer fakeUpdater(&checks, &downloads, &checked)()
 	a := newTestApp()
 	a.updates = true
-	tt := ui.NewTester(a.settingsView, 560, 2000)
+	a.settingsPage = "updates"
+	tt := ui.NewTester(a.settingsView, 760, 2000)
 	tt.Frame()
 	if err := tt.Click("Check for Updates"); err != nil {
 		t.Fatal(err)

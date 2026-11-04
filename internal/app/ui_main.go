@@ -343,7 +343,8 @@ func (a *app) endMark(c *ui.Context) {
 }
 
 // edgeShown returns how much of a scroll edge shows over el: fully while
-// content is under its bar, and none at rest, as AppKit shows its edges.
+// content is under its bar or the pointer is over it, and none at rest, as
+// AppKit shows its edges.
 func edgeShown(el ui.Element, under bool) float32 {
 	target := float32(0)
 	if under {
@@ -359,7 +360,8 @@ func (a *app) pageTop(c *ui.Context) {
 	top, _ := a.insets(c)
 	edge := ui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(top).DragWindow().
 		Material(glass.ScrollEdge{Hard: true, Background: a.pal.bg})
-	edge.Opacity(edgeShown(edge, a.underTop))
+	// The pointer over it brings the edge up too, as AppKit's does.
+	edge.Opacity(edgeShown(edge, a.underTop || edge.Hovered()))
 	if len(a.history) > 0 || len(a.forward) > 0 {
 		ui.Row(c).Absolute().Top(0).Left(20).Height(topBar(c)).AlignItems(ui.Center).Children(func() {
 			back := iconButton(c.Key("back"), iconBack, 18, a.pal.muted, T("Back")).Disabled(len(a.history) == 0)
@@ -439,7 +441,7 @@ func (a *app) remedy(c *ui.Context) {
 		}
 	case lib.needsSetup:
 		if ui.PrimaryButton(c.Key("setup"), T("Open Settings")).Clicked() {
-			a.openSettings()
+			a.openSourceSettings()
 		}
 	}
 }
@@ -604,7 +606,7 @@ func (a *app) sourceSwitcher(c *ui.Context) {
 	p := a.pal
 	const height = 24
 	b := ui.ButtonBase(c.Key("source")).Height(height).PaddingX(7).Gap(4).Radius(7).AlignItems(ui.Center).
-		FocusRing(false).Label(T("Source"))
+		FocusRing(false).Label(T("Plugin"))
 	if left := c.TitleBar().Left; left > 0 {
 		b.Absolute().Top((topBar(c) - height) / 2).Left(left + 2).MaxWidth(sidebarWidth - left - 12)
 	} else {

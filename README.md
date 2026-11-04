@@ -23,7 +23,7 @@ go test ./internal/...
 
 ## Plugins
 
-A plugin is a folder in the app's `plugins` directory (Settings > Sources > Show Folder) with a `plugin.json` and one JavaScript or TypeScript file. There's nothing to build, and the same plugin runs on every platform. [`examples/demo-plugin`](examples/demo-plugin) does everything a plugin can with made-up data: copy it to start.
+A plugin is a folder in the app's `plugins` directory (Settings > Plugins > Show Folder) with a `plugin.json` and one JavaScript or TypeScript file. There's nothing to build, and the same plugin runs on every platform. [`examples/demo-plugin`](examples/demo-plugin) does everything a plugin can with made-up data: copy it to start.
 
 ```json
 {

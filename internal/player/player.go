@@ -760,13 +760,13 @@ func (p *Player) loadFailed(source string, err error, at, skipped int) {
 func errorText(err error) string {
 	switch {
 	case errors.Is(err, errNoSource):
-		return i18n.T("The source of this song is gone")
+		return i18n.T("The plugin of this song is gone")
 	case errors.Is(err, music.ErrUnavailable):
 		return i18n.T("This song isn't available")
 	case errors.Is(err, music.ErrSignIn):
 		return i18n.T("Sign in to play this song")
 	case errors.Is(err, music.ErrSetup):
-		return i18n.T("The source needs setting up")
+		return i18n.T("The plugin needs setting up")
 	}
 	return err.Error()
 }

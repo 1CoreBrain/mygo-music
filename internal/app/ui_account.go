@@ -45,7 +45,7 @@ func (a *app) loadAccount(lib *library) {
 		a.post(func() {
 			lib.accountBusy = false
 			if err != nil {
-				a.problem(lib, err, T("Couldn't reach this source"))
+				a.problem(lib, err, T("Couldn't reach this plugin"))
 				return
 			}
 			was := lib.account
@@ -169,7 +169,7 @@ func (a *app) signInDialog(c *ui.Context) {
 			name = d.lib.name()
 		}
 		ui.Text(c, Tf("Sign in to %s", name)).FontSize(17).FontWeight(700)
-		text := T("You'll finish signing in with the source, which may open your browser.")
+		text := T("You'll finish signing in with the plugin, which may open your browser.")
 		switch {
 		case d.err != "":
 			text = d.err

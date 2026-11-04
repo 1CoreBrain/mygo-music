@@ -110,7 +110,8 @@ func TestSettingsFrame(t *testing.T) {
 	plugin.vals["region"] = "Nordics"
 	a.library = addFake(a, plugin)
 	a.account = &music.Account{ID: "1", Name: "Alex"}
-	tt := ui.NewTester(a.settingsView, 600, 1000)
+	a.settingsPage = "plugins"
+	tt := ui.NewTester(a.settingsView, 780, 720)
 	settled(tt)
 	saveFrame(t, dir, "settings.png", tt.Image())
 }

@@ -18,6 +18,9 @@ type settings struct {
 	Language string `json:"language"`
 	// Source is the ID of the source last used.
 	Source string `json:"source,omitempty"`
+	// DisabledPlugins are the IDs of the plugins turned off. All are on until
+	// then, the built-in one included.
+	DisabledPlugins []string `json:"disabledPlugins,omitempty"`
 	// Notch shows the quick player around the notch: the listener turns
 	// it on.
 	Notch bool `json:"notch"`

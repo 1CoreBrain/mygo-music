@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -64,6 +65,7 @@ type app struct {
 	*library
 	local   *local.Source // the built-in source, nil in tests that have none
 	plugins []*plugin.Plugin
+	allLibs []*library // every plugin, on or off; libs are those on
 
 	route   route
 	history []route
@@ -87,8 +89,14 @@ type app struct {
 
 	mineCollapsed, savedCollapsed bool
 
-	query       string
-	searchBox   ui.Handle
+	query     string
+	searchBox ui.Handle
+
+	settingsPage      string // the settings' page that shows
+	settingsQuery     string // what's searched for in the settings
+	settingsSearchBox ui.Handle
+	settingsUnderTop  bool // the settings' page has scrolled under its top edge
+
 	suggestions suggestState // what the search field's query may be after
 
 	nowPlaying  bool
@@ -196,23 +204,67 @@ func userDataDir(sub string) string {
 // none of them started yet, and makes active the one last used, if it's there.
 func (a *app) makeSources() {
 	a.local = local.New(userDataDir("local"))
-	a.libs = []*library{newLibrary(a.local)}
-	a.libs[0].caps = probeCaps(a.local)
+	builtIn := newLibrary(a.local)
+	builtIn.caps = probeCaps(a.local)
+	a.allLibs = []*library{builtIn}
 	plugin.SetOpenURL(mygo.Shell.OpenExternal)
 	a.plugins = plugin.Discover(pluginsDir(), userDataDir("plugin-data"))
 	for _, p := range a.plugins {
-		if a.libOf(p.Info().ID) == nil {
-			a.libs = append(a.libs, newLibrary(p))
+		lib := newLibrary(p)
+		if !slices.ContainsFunc(a.allLibs, func(l *library) bool { return l.id == lib.id }) {
+			a.allLibs = append(a.allLibs, lib)
 		}
 	}
+	a.enabledChanged()
 	a.library = a.libs[0]
 	if lib := a.libOf(a.settings.Source); lib != nil {
 		a.library = lib
 	}
 	a.route = route{page: pageHome, src: a.library.id}
 	a.local.OnChange(func() {
-		a.post(func() { a.libraryChanged(a.libs[0]) })
+		a.post(func() { a.libraryChanged(builtIn) })
 	})
+}
+
+// enabledChanged lists the plugins that are on. There's always one: with all of
+// them off in the settings, as by hand, it's the built-in one.
+func (a *app) enabledChanged() {
+	a.libs = nil
+	for _, lib := range a.allLibs {
+		if !slices.Contains(a.settings.DisabledPlugins, lib.id) {
+			a.libs = append(a.libs, lib)
+		}
+	}
+	if len(a.libs) == 0 && len(a.allLibs) > 0 {
+		a.libs = a.allLibs[:1]
+	}
+}
+
+// setPluginEnabled turns a plugin on or off. Off, it stops, its pages go, and if
+// it's the one showing, the first one on takes over; its songs still queued say
+// they're gone. The last one on can't go.
+func (a *app) setPluginEnabled(lib *library, on bool) {
+	disabled := slices.DeleteFunc(slices.Clone(a.settings.DisabledPlugins), func(id string) bool { return id == lib.id })
+	if !on {
+		if len(a.libs) == 1 && a.libs[0] == lib {
+			return
+		}
+		disabled = append(disabled, lib.id)
+	}
+	a.settings.DisabledPlugins = disabled
+	a.enabledChanged()
+	if on {
+		// One off since launch hasn't said what it can do yet.
+		a.learn(lib)
+	} else {
+		if a.library == lib {
+			a.switchSource(a.libs[0].id)
+		}
+		if closer, ok := lib.src.(interface{ Close() }); ok {
+			go closer.Close()
+		}
+	}
+	a.changed()
 }
 
 // pluginsDir is where plugins are dropped in.

@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"mygo-music/internal/plugin"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -24,7 +25,7 @@ func addOther(a *app) (*fakeSource, *library) {
 // chooseSource chooses a source with the sidebar's switcher.
 func chooseSource(t *testing.T, tt *ui.Tester, name string) {
 	t.Helper()
-	if err := tt.Click("Source"); err != nil {
+	if err := tt.Click("Plugin"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.ChooseMenuItem(name); err != nil {
@@ -37,12 +38,12 @@ func TestSwitcherNeedsAnotherSource(t *testing.T) {
 	a := newTestApp()
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
-	if _, ok := tt.Find("Source"); ok {
+	if _, ok := tt.Find("Plugin"); ok {
 		t.Error("a switcher with nothing to switch to")
 	}
 	addOther(a)
 	tt.Frame()
-	if _, ok := tt.Find("Source"); !ok {
+	if _, ok := tt.Find("Plugin"); !ok {
 		t.Error("no switcher with two sources")
 	}
 }
@@ -528,7 +529,8 @@ func TestErrSetupOffersSettings(t *testing.T) {
 		t.Errorf("the page offers no settings: %q", tt.Texts())
 	}
 
-	settings := ui.NewTester(a.settingsView, 600, 1400)
+	a.settingsPage = "plugins"
+	settings := ui.NewTester(a.settingsView, 760, 1400)
 	settings.Frame()
 	// The field, under the title labelled as it is.
 	r, ok := settings.Find("API Key")
@@ -710,7 +712,8 @@ func TestSettingsAllowPrograms(t *testing.T) {
 	src.perms.Network = []string{"api.example.com"}
 	addFake(a, src)
 
-	settings := ui.NewTester(a.settingsView, 600, 1400)
+	a.settingsPage = "plugins"
+	settings := ui.NewTester(a.settingsView, 760, 1400)
 	settings.Frame()
 	if err := settings.Click("Allow Programs"); err != nil {
 		t.Fatal(err)
@@ -837,5 +840,126 @@ func TestFollowSystemLanguage(t *testing.T) {
 	onMainThread(func() { a.setLanguage(i18n.System) })
 	if i18n.Language() != i18n.Chinese || a.settings.Language != i18n.System {
 		t.Fatalf("speaks %q, kept %q", i18n.Language(), a.settings.Language)
+	}
+}
+
+// The settings' sidebar opens its pages, one at a time.
+func TestSettingsSidebarOpensPages(t *testing.T) {
+	a := newTestApp()
+	tt := ui.NewTester(a.settingsView, 780, 800)
+	tt.Frame()
+	if _, ok := tt.Find("Language"); !ok {
+		t.Fatalf("General isn't the first page: %q", tt.Texts())
+	}
+	if err := tt.Click("Playback"); err != nil {
+		t.Fatal(err)
+	}
+	settled(tt)
+	if _, ok := tt.Find("Quality"); !ok {
+		t.Errorf("no Quality on Playback: %q", tt.Texts())
+	}
+	if _, ok := tt.Find("Language"); ok {
+		t.Error("General's still showing")
+	}
+}
+
+// A search finds settings across the pages, and only those; one that finds
+// nothing says so; and choosing a page leaves it.
+func TestSettingsSearch(t *testing.T) {
+	a := newTestApp()
+	tt := ui.NewTester(a.settingsView, 780, 800)
+	tt.Frame()
+	if err := tt.Click("Search Settings"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("QUALITY")
+	settled(tt)
+	if _, ok := tt.Find("Quality"); !ok {
+		t.Fatalf("didn't find it: %q", tt.Texts())
+	}
+	if _, ok := tt.Find("Language"); ok {
+		t.Error("shows what it didn't look for")
+	}
+	if _, ok := tt.Find("Even Out Loudness"); ok {
+		t.Error("shows a row of the same page it didn't look for")
+	}
+
+	a.settingsQuery = "zzzz"
+	settled(tt)
+	if _, ok := tt.Find("No settings found"); !ok {
+		t.Errorf("says nothing of finding nothing: %q", tt.Texts())
+	}
+
+	// By a page's name, all of it.
+	a.settingsQuery = "playback"
+	settled(tt)
+	if _, ok := tt.Find("Even Out Loudness"); !ok {
+		t.Errorf("the page's rows aren't there: %q", tt.Texts())
+	}
+
+	if err := tt.Click("Cache"); err != nil {
+		t.Fatal(err)
+	}
+	settled(tt)
+	if a.settingsQuery != "" || a.settingsPage != "cache" {
+		t.Errorf("query %q on page %q", a.settingsQuery, a.settingsPage)
+	}
+}
+
+// A control a search found works as on its page.
+func TestSettingsFoundControlWorks(t *testing.T) {
+	a := newTestApp()
+	a.settingsQuery = "loudness"
+	tt := ui.NewTester(a.settingsView, 780, 800)
+	settled(tt)
+	was := a.settings.Normalize
+	// The row's title is labelled as its switch is: click the switch, at its end.
+	top, ok1 := tt.Find("Even Out Loudness")
+	bottom, ok2 := tt.Find("Adjust each song's volume by what its plugin measured of it, for them to sound as loud as each other")
+	if !ok1 || !ok2 {
+		t.Fatalf("not found: %q", tt.Texts())
+	}
+	tt.ClickAt(780-28-16-12, (top.Y+bottom.Y+bottom.H)/2)
+	tt.Frame()
+	if a.settings.Normalize == was {
+		t.Error("the switch did nothing")
+	}
+}
+
+// Turning the plugin that shows off moves to the next one on, and it's gone from
+// what songs can play through; the last one on can't be turned off; and it's kept.
+func TestTurnPluginOff(t *testing.T) {
+	a := newTestApp()
+	_, other := addOther(a)
+	first := a.libs[0]
+	a.library = other
+	settings := func() *ui.Tester {
+		a.settingsPage = "plugins"
+		tt := ui.NewTester(a.settingsView, 780, 1400)
+		tt.Frame()
+		return tt
+	}
+	tt := settings()
+	if err := tt.Click("Enable " + other.name()); err != nil {
+		t.Fatal(err)
+	}
+	if a.library != first {
+		t.Fatalf("still on %s", a.library.id)
+	}
+	if a.sourceByID(other.id) != nil {
+		t.Error("its songs can still play")
+	}
+	if !slices.Contains(a.settings.DisabledPlugins, other.id) {
+		t.Error("not kept")
+	}
+
+	a.setPluginEnabled(first, false)
+	if len(a.libs) != 1 || a.libs[0] != first {
+		t.Fatalf("turned the last one off: %d left", len(a.libs))
+	}
+
+	a.setPluginEnabled(other, true)
+	if a.sourceByID(other.id) == nil || slices.Contains(a.settings.DisabledPlugins, other.id) {
+		t.Error("didn't come back on")
 	}
 }
