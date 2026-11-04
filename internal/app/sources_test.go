@@ -1023,7 +1023,7 @@ func TestTurnPluginOff(t *testing.T) {
 	a := newTestApp()
 	_, other := addOther(a)
 	first := a.libs[0]
-	a.library = other
+	a.switchSource(other.id)
 	settings := func() *ui.Tester {
 		a.settingsPage = "plugins"
 		tt := ui.NewTester(a.settingsView, 780, 1400)
