@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mygo-music/internal/music"
+	"rsc.io/qr"
 )
 
 // mygoOpenFolders asks for folders of music with the native dialog.
@@ -29,6 +30,8 @@ type signInDialog struct {
 	waiting bool
 	gen     int // counts the ones started, to tell the last
 	err     string
+	prompt  music.SignInPrompt // what the source wants shown
+	qr      *qr.Code           // prompt's QR, encoded
 }
 
 // loadAccount asks a source who is signed in.
@@ -86,7 +89,17 @@ func (a *app) startSignIn() {
 		return
 	}
 	d.waiting, d.err = true, ""
+	d.prompt, d.qr = music.SignInPrompt{}, nil
 	gen := d.gen
+	if p, ok := lib.src.(music.Prompter); ok {
+		p.OnSignInPrompt(func(prompt music.SignInPrompt) {
+			a.post(func() {
+				if a.signIn.gen == gen {
+					a.signInPrompted(prompt)
+				}
+			})
+		})
+	}
 	go func() {
 		acc, err := lib.src.SignIn()
 		a.post(func() {
@@ -108,6 +121,21 @@ func (a *app) startSignIn() {
 			a.afterAccount(lib)
 		})
 	}()
+}
+
+// signInPrompted shows what the source wants shown. A QR that can't be encoded
+// leaves its text, which should say how else to go on.
+func (a *app) signInPrompted(prompt music.SignInPrompt) {
+	d := &a.signIn
+	d.prompt, d.qr = prompt, nil
+	if prompt.QR != "" {
+		code, err := qr.Encode(prompt.QR, qr.M)
+		if err != nil {
+			d.err = err.Error()
+			return
+		}
+		d.qr = code
+	}
 }
 
 // signOut signs out of a source.
@@ -140,10 +168,19 @@ func (a *app) signInDialog(c *ui.Context) {
 		switch {
 		case d.err != "":
 			text = d.err
+		case d.waiting && d.prompt.Text != "":
+			text = d.prompt.Text
 		case d.waiting:
 			text = T("Waiting for you to finish signing in…")
 		}
 		ui.Text(c, text).FontSize(13).TextColor(p.muted).LineHeight(1.45)
+		if code := d.qr; code != nil && d.waiting && d.err == "" {
+			// On white whatever the appearance, for cameras to read it.
+			ui.Row(c).Justify(ui.Center).Margin(6, 0, 2, 0).Children(func() {
+				ui.Box(c).Size(208, 208).Radius(12).Background(ui.Hex("#ffffff")).
+					Draw(func(pt *ui.Painter, r ui.Rect) { drawQR(pt, r, code, 14) })
+			})
+		}
 		ui.Row(c).Gap(10).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
 			if pillButton(c.Key("cancel"), nil, T("Cancel"), p.hover.Over(p.bg), p.text).Clicked() {
 				d.open = false
@@ -153,6 +190,23 @@ func (a *app) signInDialog(c *ui.Context) {
 			}
 		})
 	})
+}
+
+// drawQR draws a QR code in r, as crisp squares inside a quiet zone of pad.
+func drawQR(p *ui.Painter, r ui.Rect, code *qr.Code, pad float32) {
+	n := code.Size
+	cell := (min(r.W, r.H) - 2*pad) / float32(n)
+	x0 := r.X + (r.W-cell*float32(n))/2
+	y0 := r.Y + (r.H-cell*float32(n))/2
+	ink := ui.Hex("#141416")
+	for y := range n {
+		for x := range n {
+			if code.Black(x, y) {
+				// A hair larger, so neighbors join without seams.
+				p.Fill(ui.Rect{X: x0 + float32(x)*cell, Y: y0 + float32(y)*cell, W: cell + 0.3, H: cell + 0.3}, ink, 0)
+			}
+		}
+	}
 }
 
 // accountRow sits at the foot of the sidebar: who is signed in to the source,

@@ -2,6 +2,8 @@ package plugin
 
 import (
 	"bufio"
+	"crypto/aes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -427,5 +429,44 @@ export async function suggest() {
 	}
 	if got[0] != "1" || !strings.Contains(got[1], "the reason it stopped") {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// The hashes and ciphers a plugin gets are the standard ones: known answers.
+func TestCrypto(t *testing.T) {
+	p := load(t, plain, `
+export function suggest() {
+  return [host.crypto.md5("abc"), host.crypto.aesEcbEncrypt("0123456789abcdef", "hello")];
+}`)
+	got, err := p.Suggest("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0] != "900150983cd24fb0d6963f7d28e17f72" {
+		t.Errorf("md5: %s", got[0])
+	}
+	block, _ := aes.NewCipher([]byte("0123456789abcdef"))
+	want := []byte("hello\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b")
+	out := make([]byte, 16)
+	block.Encrypt(out, want)
+	if got[1] != hex.EncodeToString(out) {
+		t.Errorf("aes: %s, want %x", got[1], out)
+	}
+}
+
+// What a plugin wants shown as it signs in reaches the app as it goes.
+func TestSignInPrompt(t *testing.T) {
+	p := load(t, plain, `
+export function signIn() {
+  host.signInPrompt({ qr: "https://example.com/code", text: "Scan it" });
+  return { id: "1", name: "me" };
+}`)
+	var got music.SignInPrompt
+	p.OnSignInPrompt(func(prompt music.SignInPrompt) { got = prompt })
+	if _, err := p.SignIn(); err != nil {
+		t.Fatal(err)
+	}
+	if got.QR != "https://example.com/code" || got.Text != "Scan it" {
+		t.Fatalf("got %+v", got)
 	}
 }

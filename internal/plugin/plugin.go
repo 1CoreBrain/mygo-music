@@ -78,6 +78,14 @@ type Plugin struct {
 	storage  map[string]json.RawMessage
 	granted  bool // the listener let it start programs
 	vm       *vm
+	prompt   func(music.SignInPrompt)
+}
+
+// OnSignInPrompt says what to do with what the plugin wants shown as it signs in.
+func (p *Plugin) OnSignInPrompt(show func(music.SignInPrompt)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.prompt = show
 }
 
 // Load reads and compiles the plugin in dir, keeping its data in dataDir,
@@ -502,3 +510,4 @@ func (p *Plugin) SetSetting(key, value string) error {
 
 var _ music.Source = (*Plugin)(nil)
 var _ music.Recorder = (*Plugin)(nil)
+var _ music.Prompter = (*Plugin)(nil)

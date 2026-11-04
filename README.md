@@ -111,7 +111,10 @@ A plugin has the JavaScript standard library, timers, `fetch` and its relatives,
 | `host.storage.get(key)`, `.set(key, value)`, `.remove(key)` | JSON values that outlive the app |
 | `host.setting(key)` | what the listener filled in |
 | `host.removeDataDir(name)` | removes a folder inside `host.dataDir` |
+| `host.crypto.md5(text)` | its hash, in hex |
+| `host.crypto.aesEcbEncrypt(key, text)` | AES-ECB with PKCS#7 padding, in hex, for services whose requests are made that way |
 | `host.openURL(url)` | opens a web page in the listener's browser |
+| `host.signInPrompt({qr, text})` | what the sign-in window shows while `signIn` goes on: a QR code to scan, and what to do |
 | `host.waitForRedirect({port, path, timeout, page})` | the end of a browser sign-in: listens on `127.0.0.1` and answers the query it's redirected back with. Needs the network permission |
 | `host.spawn(command, args)` | starts a program, by a path from the plugin's folder or absolute. Needs the process permission. Returns `{pid, write(text), closeStdin(), readLine(), wait(), kill(), errorOutput()}` |
 

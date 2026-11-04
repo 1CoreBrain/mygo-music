@@ -751,3 +751,44 @@ func (s *guardedSource) Grant(on bool) error {
 	s.granted = on
 	return nil
 }
+
+// A source's QR code and what it says show while signing in, and go with it.
+func TestSignInShowsPrompt(t *testing.T) {
+	release := make(chan struct{})
+	a := newTestApp()
+	ch := posts(a)
+	src := &promptingSource{fakeSource: newFakeSource("qr")}
+	src.signIn = func() (*music.Account, error) {
+		src.show(music.SignInPrompt{QR: "https://example.com/code", Text: "Scan this code"})
+		<-release
+		return &music.Account{ID: "1", Name: "Me"}, nil
+	}
+	lib := addFake(a, src)
+	a.promptSignIn(lib)
+	tt := ui.NewTester(a.view, 1200, 800)
+	settled(tt)
+	if err := tt.Click("Sign In"); err != nil {
+		t.Fatal(err)
+	}
+	runPost(t, ch)
+	settled(tt)
+	if a.signIn.qr == nil {
+		t.Fatal("no QR code")
+	}
+	if _, ok := tt.Find("Scan this code"); !ok {
+		t.Errorf("the prompt doesn't show: %q", tt.Texts())
+	}
+	close(release)
+	until(t, ch, func() bool { return lib.account != nil })
+	if a.signIn.open {
+		t.Error("the dialog stayed")
+	}
+}
+
+// promptingSource is a fake source with something to show while signing in.
+type promptingSource struct {
+	*fakeSource
+	show func(music.SignInPrompt)
+}
+
+func (s *promptingSource) OnSignInPrompt(show func(music.SignInPrompt)) { s.show = show }

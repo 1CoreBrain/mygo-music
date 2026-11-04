@@ -2,7 +2,11 @@ package plugin
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +23,8 @@ import (
 	"time"
 
 	"github.com/MoeForge/moejs"
+
+	"mygo-music/internal/music"
 )
 
 // openURL opens a page in the listener's browser. The app sets it.
@@ -69,6 +75,32 @@ func (p *Plugin) installHost(v *vm) error {
 			}
 			return moejs.Undefined(), openURL(address)
 		}),
+		"signInPrompt": moejs.NativeFunc(func(_ *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+			var prompt music.SignInPrompt
+			if err := v.rt.ToGoInto(moejs.Arg(args, 0), &prompt); err != nil {
+				return moejs.Undefined(), err
+			}
+			p.mu.Lock()
+			show := p.prompt
+			p.mu.Unlock()
+			if show != nil {
+				show(prompt)
+			}
+			return moejs.Undefined(), nil
+		}),
+		"crypto": map[string]any{
+			"md5": moejs.NativeFunc(func(_ *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+				sum := md5.Sum([]byte(moejs.Arg(args, 0).String()))
+				return moejs.String(hex.EncodeToString(sum[:])), nil
+			}),
+			"aesEcbEncrypt": moejs.NativeFunc(func(_ *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+				out, err := aesECB([]byte(moejs.Arg(args, 0).String()), []byte(moejs.Arg(args, 1).String()))
+				if err != nil {
+					return moejs.Undefined(), err
+				}
+				return moejs.String(hex.EncodeToString(out)), nil
+			}),
+		},
 		"removeDataDir": moejs.NativeFunc(func(_ *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
 			name := moejs.Arg(args, 0).String()
 			// Only something within its own data, and not all of it, which holds ours.
@@ -315,6 +347,22 @@ func (p *Plugin) spawn(v *vm) native {
 			}),
 		})
 	}
+}
+
+// aesECB encrypts text as AES in ECB mode with PKCS#7 padding. Plugins have it for
+// the services whose requests are made that way: it's not for keeping secrets.
+func aesECB(key, text []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	pad := aes.BlockSize - len(text)%aes.BlockSize
+	text = append(append([]byte(nil), text...), bytes.Repeat([]byte{byte(pad)}, pad)...)
+	out := make([]byte, len(text))
+	for i := 0; i < len(text); i += aes.BlockSize {
+		block.Encrypt(out[i:i+aes.BlockSize], text[i:i+aes.BlockSize])
+	}
+	return out, nil
 }
 
 // tailWriter passes on what's written and keeps the end of it.

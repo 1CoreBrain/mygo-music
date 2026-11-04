@@ -316,6 +316,19 @@ var (
 // first. A source may have others, or none, and answers what it has.
 var Qualities = []string{"standard", "high", "lossless"}
 
+// SignInPrompt is what a source wants shown while the listener signs in.
+type SignInPrompt struct {
+	// QR is what to show as a QR code, for signing in from a phone.
+	QR string `json:"qr,omitempty"`
+	// Text says what to do, or how it's going.
+	Text string `json:"text,omitempty"`
+}
+
+// A Prompter is a source that has something to show while signing in.
+type Prompter interface {
+	OnSignInPrompt(show func(SignInPrompt))
+}
+
 // A Recorder is a source that wants to know what's played, for its Recent.
 // A source that keeps that itself, as a service does, needn't be one.
 type Recorder interface {

@@ -13,6 +13,7 @@ require (
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/mewkiz/flac v1.0.14
 	golang.org/x/image v0.46.0
+	rsc.io/qr v0.2.0
 )
 
 require (
