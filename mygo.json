@@ -1,6 +1,6 @@
 {
   "name": "MyGo Music",
-  "identifier": "dev.egoist.mygomusic",
+  "identifier": "dev.egoist.music",
   "slug": "mygo-music",
   "version": "0.1.0",
   "out": "build",
