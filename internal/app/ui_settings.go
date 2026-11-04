@@ -505,7 +505,8 @@ func (a *app) sourceSettings(c *ui.Context, row settingsRow, block settingsBlock
 		}
 		block(text, func() { a.pluginSettings(c.Key(lib.id), lib, p) })
 	}
-	row(T("Install Plugins"), Tf("Drop plugins in %s and open the app again. A plugin reaches only what it asks for, and starts programs only if you allow it.", pluginsDir()), func() {
+	a.installSettings(c, row, block, p)
+	row(T("Plugins Folder"), Tf("Drop plugins in %s and open the app again. A plugin reaches only what it asks for, and starts programs only if you allow it.", pluginsDir()), func() {
 		if ui.Button(c.Key("reveal-plugins"), T("Show Folder")).Clicked() {
 			revealFolder(pluginsDir())
 		}
@@ -598,6 +599,7 @@ func (a *app) pluginSettings(c *ui.Context, lib *library, p palette) {
 			}
 			a.pluginSwitch(c, lib)
 		})
+		a.pluginOriginRow(c, lib, p)
 		if !enabled {
 			return
 		}

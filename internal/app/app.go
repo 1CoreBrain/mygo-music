@@ -67,7 +67,8 @@ type app struct {
 	plugins []*plugin.Plugin
 	allLibs []*library // every plugin, on or off; libs are those on
 
-	captions captionState // the episode playing's captions, and the model they take
+	captions  captionState    // the episode playing's captions, and the model they take
+	installer pluginInstaller // installing and updating plugins
 
 	route   route
 	history []route

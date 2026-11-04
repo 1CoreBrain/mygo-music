@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/egoist/mygo"
 
@@ -24,6 +25,10 @@ type settings struct {
 	// DisabledPlugins are the IDs of the plugins turned off. All are on until
 	// then, the built-in one included.
 	DisabledPlugins []string `json:"disabledPlugins,omitempty"`
+	// PluginsChecked is when plugins were last checked for new versions, once a
+	// day, and PluginUpdates the versions found, by plugin.
+	PluginsChecked time.Time         `json:"pluginsChecked,omitzero"`
+	PluginUpdates  map[string]string `json:"pluginUpdates,omitempty"`
 	// Notch shows the quick player around the notch: the listener turns
 	// it on.
 	Notch bool `json:"notch"`

@@ -33,7 +33,7 @@ gh release create sherpa-onnx-2.0.1 --prerelease --latest=false build/sherpa/*
 
 ## Plugins
 
-A plugin is a folder in the app's `plugins` directory (Settings > Plugins > Show Folder) with a `plugin.json` and one JavaScript or TypeScript file. There's nothing to build, and the same plugin runs on every platform. [`examples/demo-plugin`](examples/demo-plugin) does everything a plugin can with made-up data: copy it to start.
+A plugin is a folder in the app's `plugins` directory (Settings > Plugins > Show Folder) with a `plugin.json` and one JavaScript or TypeScript file. Install one from GitHub in Settings > Plugins, by its repository, or drop the folder in by hand. There's nothing to build, and the same plugin runs on every platform. [`examples/demo-plugin`](examples/demo-plugin) does everything a plugin can with made-up data: copy it to start.
 
 ```json
 {
@@ -115,6 +115,10 @@ The shapes are in [`internal/music/music.go`](internal/music/music.go) by their 
 With `"playback": "stream"`, the app plays what `stream` answers. With `"playback": "remote"`, the plugin makes the sound itself, or has another program do so, and the app calls the `remote` functions and polls `remoteState`.
 
 Throw an error with a `code` to say what's wrong: `signIn` prompts the listener to sign in, `setup` sends them to the plugin's settings, `unavailable` means this can't be played, and `unsupported` means the plugin doesn't do this. Any other error shows its message.
+
+### Publishing a plugin
+
+Put it in a public GitHub repository, with `plugin.json` at the top. The app takes the latest release: a `.zip` asset named for the platform, such as `plugin-darwin-arm64.zip`, or one named for none, or else the source. Without a release it takes the latest commit of the default branch. A new tag or commit is a new version, which shows as an update in the settings. An update asking for more permissions asks the listener again.
 
 ### What a plugin can reach
 

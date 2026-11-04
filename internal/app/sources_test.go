@@ -963,3 +963,64 @@ func TestTurnPluginOff(t *testing.T) {
 		t.Error("didn't come back on")
 	}
 }
+
+// Something that's no repository asks again, without going to GitHub; a repository
+// goes, and what comes back that's wrong shows, ready to try again.
+func TestInstallPluginFromSettings(t *testing.T) {
+	asked := make(chan string, 1)
+	was := fetchPlugin
+	defer func() { fetchPlugin = was }()
+	fetchPlugin = func(repo, dir string) (*plugin.Pending, error) {
+		asked <- repo
+		return nil, plugin.ErrNoRepo
+	}
+	a := newTestApp()
+	ch := posts(a)
+	a.settingsPage = "plugins"
+	tt := ui.NewTester(a.settingsView, 780, 1000)
+	tt.Frame()
+
+	a.installer.repo = "not a repo"
+	tt.Frame()
+	if err := tt.Click("Install"); err != nil {
+		t.Fatal(err)
+	}
+	if len(asked) != 0 || a.installer.err == "" {
+		t.Fatalf("asked %d, says %q", len(asked), a.installer.err)
+	}
+
+	a.installer.repo = "https://github.com/owner/repo"
+	tt.Frame()
+	if err := tt.Click("Install"); err != nil {
+		t.Fatal(err)
+	}
+	if got := wait(t, asked, "the download"); got != "owner/repo" {
+		t.Fatalf("asked for %q", got)
+	}
+	runPost(t, ch)
+	if a.installer.busy || a.installer.err != T("There's no such public repository on GitHub") {
+		t.Errorf("busy %v, says %q", a.installer.busy, a.installer.err)
+	}
+}
+
+// A new version asking for more than the old had has to ask again.
+func TestUpdateAsksForMore(t *testing.T) {
+	had := plugin.Permissions{Network: []string{"a.example.com"}}
+	for _, c := range []struct {
+		wants plugin.Permissions
+		more  bool
+	}{
+		{plugin.Permissions{Network: []string{"a.example.com"}}, false},
+		{plugin.Permissions{}, false},
+		{plugin.Permissions{Network: []string{"b.example.com"}}, true},
+		{plugin.Permissions{Network: []string{"*"}}, true},
+		{plugin.Permissions{Process: true}, true},
+	} {
+		if got := asksForMore(had, c.wants); got != c.more {
+			t.Errorf("%+v: %v", c.wants, got)
+		}
+	}
+	if asksForMore(plugin.Permissions{Network: []string{"*"}}, had) {
+		t.Error("any website already covers one")
+	}
+}

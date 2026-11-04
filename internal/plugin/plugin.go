@@ -172,7 +172,8 @@ func Discover(dir, dataDir string) []*Plugin {
 	}
 	var plugins []*Plugin
 	for _, e := range entries {
-		if !e.IsDir() {
+		// A dot is what's on its way in, or anything else that's no plugin.
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
 		p, err := Load(filepath.Join(dir, e.Name()), dataDir)

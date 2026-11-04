@@ -1,0 +1,449 @@
+package plugin
+
+import (
+	"archive/zip"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
+
+	"mygo-music/internal/local"
+)
+
+// Plugins install from GitHub: a repository's latest release, as the zip it
+// offers for this platform, or for all, or else its source; without a release,
+// the latest commit of its default branch. plugin.json is at the root of what
+// that holds, or of its one folder, as GitHub's own archives have it.
+
+// originFile records in a plugin's folder where it was installed from.
+const originFile = ".origin.json"
+
+const (
+	// maxArchive and maxUnpacked bound what an archive may take, for one that
+	// isn't what it says not to fill the disk.
+	maxArchive  = 1 << 30
+	maxUnpacked = 2 << 30
+	maxFiles    = 50000
+)
+
+// Origin is where a plugin was installed from.
+type Origin struct {
+	Repo    string `json:"repo"` // owner/repo
+	Version string `json:"version"`
+}
+
+// Release is what a repository offers to install.
+type Release struct {
+	Repo    string
+	Version string // the tag, or the commit
+	url     string // of the archive
+}
+
+// Pending is a plugin downloaded and checked, waiting for the listener to say
+// whether to install it.
+type Pending struct {
+	Release
+	Manifest Manifest
+	root     string // where it unpacked
+	tmp      string // the folder to remove with it
+}
+
+// ErrNoRepo says there's no such public repository.
+var ErrNoRepo = errors.New("no such public repository on GitHub")
+
+// githubAPI is GitHub's API; tests replace it, and installClient.
+var (
+	githubAPI     = "https://api.github.com"
+	installClient = &http.Client{Timeout: 10 * time.Minute}
+)
+
+var (
+	repoName   = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+	pluginName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+)
+
+// ParseRepo reads a repository as the listener may write it: owner/repo, or its
+// address on GitHub.
+func ParseRepo(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "https://")
+	s = strings.TrimPrefix(s, "http://")
+	s = strings.TrimPrefix(s, "www.")
+	s = strings.TrimPrefix(s, "github.com/")
+	s = strings.TrimSuffix(strings.TrimSuffix(s, "/"), ".git")
+	if !repoName.MatchString(s) || strings.Contains(s, "..") {
+		return "", fmt.Errorf("not a GitHub repository: %s", s)
+	}
+	return s, nil
+}
+
+func githubGet(path string, out any) (status int, err error) {
+	req, err := http.NewRequest("GET", githubAPI+path, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "mygo-music")
+	res, err := installClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer res.Body.Close()
+	switch res.StatusCode {
+	case http.StatusOK:
+		return res.StatusCode, json.NewDecoder(res.Body).Decode(out)
+	case http.StatusNotFound:
+		return res.StatusCode, nil
+	case http.StatusForbidden, http.StatusTooManyRequests:
+		return res.StatusCode, errors.New("GitHub says to slow down; try again in a while")
+	}
+	return res.StatusCode, fmt.Errorf("GitHub answered %s", res.Status)
+}
+
+// Latest finds what a repository offers now.
+func Latest(repo string) (*Release, error) {
+	var rel struct {
+		Tag    string `json:"tag_name"`
+		Zip    string `json:"zipball_url"`
+		Assets []struct {
+			Name string `json:"name"`
+			URL  string `json:"browser_download_url"`
+		} `json:"assets"`
+	}
+	status, err := githubGet("/repos/"+repo+"/releases/latest", &rel)
+	if err != nil {
+		return nil, err
+	}
+	if status == http.StatusOK {
+		names := make([]string, len(rel.Assets))
+		for i, a := range rel.Assets {
+			names[i] = a.Name
+		}
+		url := rel.Zip
+		if at := pickAsset(names, runtime.GOOS, runtime.GOARCH); at >= 0 {
+			url = rel.Assets[at].URL
+		}
+		return &Release{Repo: repo, Version: rel.Tag, url: url}, nil
+	}
+	// No release: the latest commit of its default branch.
+	var commit struct {
+		SHA string `json:"sha"`
+	}
+	status, err = githubGet("/repos/"+repo+"/commits/HEAD", &commit)
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK || commit.SHA == "" {
+		return nil, ErrNoRepo
+	}
+	return &Release{Repo: repo, Version: commit.SHA[:min(len(commit.SHA), 12)], url: githubAPI + "/repos/" + repo + "/zipball/" + commit.SHA}, nil
+}
+
+// pickAsset chooses the zip for a platform: the one named for it, or else one
+// named for none. A release of zips for other platforms alone has none to offer,
+// and -1 leaves its source.
+func pickAsset(names []string, goos, goarch string) int {
+	platforms := []string{"darwin", "linux", "windows"}
+	general := -1
+	for i, name := range names {
+		n := strings.ToLower(name)
+		if !strings.HasSuffix(n, ".zip") {
+			continue
+		}
+		if strings.Contains(n, goos) && strings.Contains(n, goarch) {
+			return i
+		}
+		other := false
+		for _, p := range platforms {
+			other = other || strings.Contains(n, p)
+		}
+		if !other && general < 0 {
+			general = i
+		}
+	}
+	return general
+}
+
+// Fetch downloads and unpacks what a repository offers now into dir, the plugins'
+// folder, without installing it, and checks it's a plugin that compiles. Nothing
+// of it runs. Discard or Install it next.
+func Fetch(repo, dir string) (*Pending, error) {
+	rel, err := Latest(repo)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
+	// In the same folder, for moving it in place to be one step. The dot leaves
+	// it out of Discover, if the app quits with it here.
+	tmp, err := os.MkdirTemp(dir, ".installing-")
+	if err != nil {
+		return nil, err
+	}
+	p, err := fetchInto(rel, tmp)
+	if err != nil {
+		os.RemoveAll(tmp)
+		return nil, err
+	}
+	return p, nil
+}
+
+func fetchInto(rel *Release, tmp string) (*Pending, error) {
+	archive := filepath.Join(tmp, "archive.zip")
+	if err := download(rel.url, archive); err != nil {
+		return nil, err
+	}
+	unpacked := filepath.Join(tmp, "unpacked")
+	if err := unzip(archive, unpacked); err != nil {
+		return nil, fmt.Errorf("unpacking %s: %w", rel.Repo, err)
+	}
+	root, err := pluginRoot(unpacked)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", rel.Repo, err)
+	}
+	checked, err := Load(root, filepath.Join(tmp, "data"))
+	if err != nil {
+		return nil, err
+	}
+	id := checked.manifest.ID
+	if id == local.ID || !pluginName.MatchString(id) {
+		return nil, fmt.Errorf("%s: a plugin can't be called %q", rel.Repo, id)
+	}
+	return &Pending{Release: *rel, Manifest: checked.manifest, root: root, tmp: tmp}, nil
+}
+
+func download(url, path string) error {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "mygo-music")
+	res, err := installClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("downloading the plugin: %s", res.Status)
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	n, err := io.Copy(f, io.LimitReader(res.Body, maxArchive+1))
+	if err != nil {
+		return err
+	}
+	if n > maxArchive {
+		return errors.New("the plugin's archive is too large")
+	}
+	return f.Close()
+}
+
+// unzip unpacks an archive into dir, refusing anything that would land outside
+// it. Links go too, as they could point anywhere. A file keeps being executable:
+// a plugin's programs have to be.
+func unzip(archive, dir string) error {
+	z, err := zip.OpenReader(archive)
+	if err != nil {
+		return err
+	}
+	defer z.Close()
+	if len(z.File) > maxFiles {
+		return errors.New("too many files")
+	}
+	var total int64
+	for _, f := range z.File {
+		name := filepath.FromSlash(f.Name)
+		if !filepath.IsLocal(name) {
+			return fmt.Errorf("a file outside the plugin: %s", f.Name)
+		}
+		mode := f.Mode()
+		if mode&os.ModeSymlink != 0 {
+			return fmt.Errorf("a link in the plugin: %s", f.Name)
+		}
+		path := filepath.Join(dir, name)
+		if mode.IsDir() || strings.HasSuffix(f.Name, "/") {
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
+		perm := os.FileMode(0o644)
+		if mode&0o111 != 0 {
+			perm = 0o755
+		}
+		left := int64(maxUnpacked) - total
+		n, err := unpackFile(f, path, perm, left)
+		if err != nil {
+			return err
+		}
+		if total += n; total > maxUnpacked {
+			return errors.New("the plugin is too large")
+		}
+	}
+	return nil
+}
+
+func unpackFile(f *zip.File, path string, perm os.FileMode, limit int64) (int64, error) {
+	in, err := f.Open()
+	if err != nil {
+		return 0, err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+	if err != nil {
+		return 0, err
+	}
+	defer out.Close()
+	// One byte over says it's too large, rather than cutting it short.
+	n, err := io.Copy(out, io.LimitReader(in, limit+1))
+	if err != nil {
+		return n, err
+	}
+	return n, out.Close()
+}
+
+// pluginRoot finds plugin.json: at the top, or in the one folder there.
+func pluginRoot(dir string) (string, error) {
+	if _, err := os.Stat(filepath.Join(dir, "plugin.json")); err == nil {
+		return dir, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	var folders []string
+	for _, e := range entries {
+		if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+			folders = append(folders, e.Name())
+		}
+	}
+	if len(folders) == 1 {
+		root := filepath.Join(dir, folders[0])
+		if _, err := os.Stat(filepath.Join(root, "plugin.json")); err == nil {
+			return root, nil
+		}
+	}
+	return "", errors.New("it has no plugin.json at its top: it isn't a plugin")
+}
+
+// IsNewer reports whether a repository's version is one to update to from what's
+// installed. Tags that are version numbers compare as such, for a release taken
+// back not to read as new. Anything else has no order: a commit is just the latest,
+// so one that's different is new.
+func IsNewer(latest, installed string) bool {
+	if latest == installed {
+		return false
+	}
+	a, okA := versionNumbers(latest)
+	b, okB := versionNumbers(installed)
+	if !okA || !okB {
+		return true
+	}
+	for i := range max(len(a), len(b)) {
+		var x, y int
+		if i < len(a) {
+			x = a[i]
+		}
+		if i < len(b) {
+			y = b[i]
+		}
+		if x != y {
+			return x > y
+		}
+	}
+	return false
+}
+
+// versionNumbers reads a tag such as v1.2.3, or 1.2. A tag with a label, such as
+// 1.2.3-beta, isn't one: its order isn't only in its numbers.
+func versionNumbers(tag string) ([]int, bool) {
+	parts := strings.Split(strings.TrimPrefix(tag, "v"), ".")
+	numbers := make([]int, len(parts))
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil || n < 0 {
+			return nil, false
+		}
+		numbers[i] = n
+	}
+	return numbers, true
+}
+
+// Discard forgets a plugin that won't be installed.
+func (p *Pending) Discard() { os.RemoveAll(p.tmp) }
+
+// Install puts the plugin in the plugins' folder dir, in place of the one it
+// replaces, if any, whose data stays. A plugin of that name from elsewhere stays
+// too: the new one can't take its name, and what it signed in to.
+func (p *Pending) Install(dir string) error {
+	defer os.RemoveAll(p.tmp)
+	target := filepath.Join(dir, p.Manifest.ID)
+	if _, err := os.Stat(target); err == nil {
+		var was Origin
+		readJSON(filepath.Join(target, originFile), &was)
+		if was.Repo != p.Repo {
+			return fmt.Errorf("a plugin called %s is already installed", p.Manifest.ID)
+		}
+	}
+	b, err := json.Marshal(Origin{Repo: p.Repo, Version: p.Version})
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(p.root, originFile), b, 0o644); err != nil {
+		return err
+	}
+	// Out of the way, then in, so that what fails leaves the one there.
+	old := filepath.Join(p.tmp, "replaced")
+	hadOne := false
+	if err := os.Rename(target, old); err == nil {
+		hadOne = true
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Rename(p.root, target); err != nil {
+		if hadOne {
+			os.Rename(old, target)
+		}
+		return err
+	}
+	return nil
+}
+
+// Remove deletes a plugin's folder, once it has stopped. Its data stays, for it
+// to find if it's installed again.
+func (p *Plugin) Remove() error {
+	p.Close()
+	return os.RemoveAll(p.dir)
+}
+
+// Origin is where the plugin was installed from, or nil if it was just dropped in.
+func (p *Plugin) Origin() *Origin {
+	var o Origin
+	readJSON(filepath.Join(p.dir, originFile), &o)
+	if o.Repo == "" {
+		return nil
+	}
+	return &o
+}
+
+// Reloaded reads the plugin in the same place again, as it's been updated. This
+// one stops.
+func (p *Plugin) Reloaded(dataDir string) (*Plugin, error) {
+	p.Close()
+	return Load(p.dir, dataDir)
+}

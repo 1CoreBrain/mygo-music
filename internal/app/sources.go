@@ -164,6 +164,7 @@ func (a *app) trackLib(tr *music.Track) *library {
 // up playback where it was left. The others are asked once they're needed: a
 // plugin runs from when it's first asked.
 func (a *app) boot() {
+	a.keepCheckingPlugins()
 	a.learn(a.library)
 	a.restoreSession()
 	if tr := a.pl.Current(); tr != nil {
