@@ -179,3 +179,27 @@ func TestCount(t *testing.T) {
 		}
 	}
 }
+
+// Following the system picks the first language it prefers that the app has, in
+// whatever form it's named, and a language chosen wins over it.
+func TestResolve(t *testing.T) {
+	for _, c := range []struct {
+		setting   string
+		preferred []string
+		want      string
+	}{
+		{System, []string{"zh-Hans-CN", "en-GB"}, Chinese},
+		{System, []string{"zh_TW"}, Chinese},
+		{System, []string{"en-GB", "zh-Hans"}, English},
+		{System, []string{"fr-FR", "zh-Hans"}, Chinese},
+		{System, []string{"fr-FR"}, English},
+		{System, nil, English},
+		{"", []string{"zh-Hans"}, Chinese},
+		{English, []string{"zh-Hans"}, English},
+		{Chinese, []string{"en-US"}, Chinese},
+	} {
+		if got := Resolve(c.setting, c.preferred); got != c.want {
+			t.Errorf("Resolve(%q, %v) = %q, want %q", c.setting, c.preferred, got, c.want)
+		}
+	}
+}

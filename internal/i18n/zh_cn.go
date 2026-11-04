@@ -263,6 +263,7 @@ var zhCN = map[string]string{
 	"Subscribe":                                                                         "订阅",
 	"Subscribed":                                                                        "已订阅",
 	"Suggestions":                                                                       "搜索建议",
+	"Follow System":                                                                     "跟随系统",
 	"System":                                                                            "跟随系统",
 	"That didn't work. Try again later.":                                                "操作失败，请稍后再试",
 	"That's all the comments":                                                           "没有更多评论了",

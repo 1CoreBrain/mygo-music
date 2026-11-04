@@ -247,11 +247,11 @@ func Run() error {
 		queueAt:     -1,
 		cacheUsed:   -1,
 	}
-	a.useUpdater(loadSettings().Language)
+	a.useUpdater(i18n.Resolve(loadSettings().Language, systemLanguages()))
 	mygo.App.WhenReady(func() {
 		a.settings = loadSettings()
 		a.settings.applyAppearance()
-		i18n.SetLanguage(a.settings.Language)
+		i18n.SetLanguage(i18n.Resolve(a.settings.Language, systemLanguages()))
 		a.npPane = a.lyricsPaneChosen()
 		a.makeSources()
 		// Before the window: on Windows it lays out its content as it is

@@ -822,3 +822,20 @@ func TestSignInSwitchesToTheSource(t *testing.T) {
 		t.Error("moved after the dialog had gone")
 	}
 }
+
+// Going back to following the system speaks its language again.
+func TestFollowSystemLanguage(t *testing.T) {
+	defer i18n.SetLanguage(i18n.English)
+	was := systemLanguages
+	defer func() { systemLanguages = was }()
+	systemLanguages = func() []string { return []string{"zh-Hans-CN"} }
+	a := newTestApp()
+	onMainThread(func() { a.setLanguage(i18n.English) })
+	if i18n.Language() != i18n.English {
+		t.Fatalf("speaks %q", i18n.Language())
+	}
+	onMainThread(func() { a.setLanguage(i18n.System) })
+	if i18n.Language() != i18n.Chinese || a.settings.Language != i18n.System {
+		t.Fatalf("speaks %q, kept %q", i18n.Language(), a.settings.Language)
+	}
+}

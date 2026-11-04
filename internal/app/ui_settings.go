@@ -64,11 +64,14 @@ func (a *app) changed() {
 	a.redraw()
 }
 
+// systemLanguages are the languages the system prefers; tests replace it.
+var systemLanguages = func() []string { return mygo.App.PreferredLanguages() }
+
 // setLanguage speaks another language from now on: the views say it as they
 // redraw; the menus, and what the sources wrote out in it, are made anew.
 func (a *app) setLanguage(code string) {
 	a.settings.Language = code
-	i18n.SetLanguage(code)
+	i18n.SetLanguage(i18n.Resolve(code, systemLanguages()))
 	a.changed()
 	if a.win != nil {
 		a.setMenu()
@@ -132,21 +135,23 @@ func (a *app) settingsView(c *ui.Context) {
 
 		group(T("General"), func() {
 			row(T("Language"), "", func() {
-				names := make([]string, len(i18n.Languages))
-				at := 0
-				for i, l := range i18n.Languages {
-					names[i] = l.Name
+				follow := T("Follow System")
+				names := []string{follow}
+				chosen := follow
+				for _, l := range i18n.Languages {
+					names = append(names, l.Name)
 					if l.Code == s.Language {
-						at = i
+						chosen = l.Name
 					}
 				}
-				chosen := names[at]
 				if ui.Select(c.Key("language"), &chosen, names).Label(T("Language")).Width(170).Changed() {
+					code := i18n.System
 					for _, l := range i18n.Languages {
 						if l.Name == chosen {
-							a.setLanguage(l.Code)
+							code = l.Code
 						}
 					}
+					a.setLanguage(code)
 				}
 			})
 			// Only on macOS: elsewhere the icon is always in the notification

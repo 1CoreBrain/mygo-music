@@ -5,11 +5,14 @@ package i18n
 
 import (
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 )
 
 const (
+	// System is the setting of following the system's language: see Resolve.
+	System  = "system"
 	English = "en"
 	Chinese = "zh-CN"
 )
@@ -18,6 +21,26 @@ const (
 var Languages = []struct{ Code, Name string }{
 	{English, "English"},
 	{Chinese, "简体中文"},
+}
+
+// Resolve is the language to speak for a setting: the one chosen, or for System,
+// the first of those the system prefers that the app has, or else English. All
+// of Chinese reads Chinese: Traditional readers can still read Simplified, which
+// they can't say of English.
+func Resolve(setting string, preferred []string) string {
+	if setting == English || setting == Chinese {
+		return setting
+	}
+	for _, tag := range preferred {
+		base, _, _ := strings.Cut(strings.ToLower(strings.ReplaceAll(tag, "_", "-")), "-")
+		switch base {
+		case "zh":
+			return Chinese
+		case "en":
+			return English
+		}
+	}
+	return English
 }
 
 var language atomic.Pointer[string]
