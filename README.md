@@ -1,0 +1,128 @@
+# MyGo Music
+
+A native desktop music player written in Go with [MyGo](https://github.com/egoist/mygo), no WebView. It plays your local files out of the box, and everything else comes from plugins.
+
+## Features
+
+- Local files with tags, covers and `.lrc` lyrics
+- Playlists, liked songs, search, albums and artists
+- Now Playing with lyric stage styles, cover wall, queue, shuffle and repeat
+- Notch player on macOS, tray, media keys
+- Audio cache, fades on pause and seek, loudness normalization
+- Session restore
+- English and Simplified Chinese
+- Plugins can add accounts, catalogs, podcasts, stations, comments and pages of their own
+
+## Build
+
+```bash
+go tool mygo dev     # run in development
+go tool mygo build   # package into build/
+go test ./internal/...
+```
+
+## Plugins
+
+A plugin is a folder in the app's `plugins` directory (Settings > Sources > Show Folder) with a `plugin.json` and one JavaScript or TypeScript file. There's nothing to build, and the same plugin runs on every platform. [`examples/demo-plugin`](examples/demo-plugin) does everything a plugin can with made-up data: copy it to start.
+
+```json
+{
+  "id": "example",
+  "name": "Example",
+  "version": "1.0.0",
+  "main": "index.js",
+  "playback": "stream",
+  "permissions": { "network": ["api.example.com"] },
+  "settings": [{ "key": "apiKey", "label": "API Key", "help": "From your account page", "link": "https://example.com/keys" }],
+  "navigation": [{ "title": "Charts", "page": "charts", "icon": "chart" }]
+}
+```
+
+```js
+export async function search({ query, kind, offset }) {
+  const res = await fetch(`https://api.example.com/search?q=${encodeURIComponent(query)}&type=${kind}&offset=${offset}`, {
+    headers: { authorization: `Bearer ${host.setting("apiKey")}` },
+  });
+  return { tracks: (await res.json()).items.map(toTrack), more: false };
+}
+
+export function stream({ id, quality }) {
+  return { url: `https://api.example.com/audio/${id}.mp3`, type: "mp3" };
+}
+```
+
+Export a function for each thing the plugin does. Each takes one object of parameters and returns a value or a promise. What it doesn't export, the app leaves out of its pages.
+
+| Export | Parameters | Returns |
+| --- | --- | --- |
+| `signIn`, `signOut`, `account` | | `{id, name, imageUrl}`; `account` returns `null` when signed out |
+| `setSetting` | `{key, value}` | |
+| `home` | | `Browse` |
+| `browse` | `{page}` | `Browse` |
+| `search` | `{query, kind, offset}`, where `kind` is `tracks`, `albums`, `artists`, `playlists` or `shows` | `{tracks or albums or ..., more}` |
+| `suggest` | `{query}` | `[string]` |
+| `recent` | | `[Track]` |
+| `played` | `{id}` | |
+| `liked` | `{offset}` | `{tracks, more}` |
+| `isLiked` | `{ids}` | `{id: bool}` |
+| `like` | `{id, on}` | |
+| `album` | `{id}` | `{album, tracks}` |
+| `artist` | `{id}` | `{artist, tracks, albums}` |
+| `saveAlbum`, `followArtist`, `savePlaylist`, `subscribeShow` | `{id, on}` | |
+| `savedAlbums` | `{offset}` | `{albums, more}` |
+| `playlists` | | `[Playlist]` |
+| `playlist` | `{id}` | `Playlist` with `tracks` |
+| `createPlaylist` | `{name}` | `Playlist` |
+| `renamePlaylist` | `{id, name}` | |
+| `deletePlaylist` | `{id}` | |
+| `addToPlaylist`, `removeFromPlaylist` | `{id, trackIds}` | |
+| `movePlaylistTrack` | `{id, from, to}` | |
+| `shows` | | `[Show]` |
+| `show` | `{id, offset}` | `{show, episodes, more}` |
+| `stations` | | `[Station]` |
+| `stationNext` | `{id}` | `[Track]` |
+| `comments` | `{trackId, offset}` | `{comments, total, more}` |
+| `likeComment` | `{trackId, commentId, on}` | |
+| `postComment` | `{trackId, text}` | `Comment` |
+| `lyrics` | `{id}` | `{lrc, translation}`, or `{lines}` with timed `words` |
+| `stream` | `{id, quality}` | `{url, type, headers, size, gain, peak}`, where `type` is `mp3` or `flac` |
+| `remotePlay` | `{ids, start, position}` | |
+| `remotePause`, `remoteResume` | | |
+| `remoteSeek` | `{position}` | |
+| `remoteVolume` | `{percent}` | |
+| `remoteState` | | `{playing, trackId, position, duration, volume, device}` or `null` |
+| `remoteDevices` | | `[{id, name, active}]` |
+| `remoteUse` | `{deviceId}` | |
+
+The shapes are in [`internal/music/music.go`](internal/music/music.go) by their JSON names. Times are in milliseconds. A `Browse` is `{title, subtitle, sections}`, and a section can hold `tracks`, `albums`, `artists`, `playlists`, `shows`, `stations`, `links` (`{title, subtitle, imageUrl, page}`) and a `morePage`.
+
+With `"playback": "stream"`, the app plays what `stream` answers. With `"playback": "remote"`, the plugin makes the sound itself, or has another program do so, and the app calls the `remote` functions and polls `remoteState`.
+
+Throw an error with a `code` to say what's wrong: `signIn` prompts the listener to sign in, `setup` sends them to the plugin's settings, `unavailable` means this can't be played, and `unsupported` means the plugin doesn't do this. Any other error shows its message.
+
+### What a plugin can reach
+
+A plugin has the JavaScript standard library, timers, `fetch` and its relatives, `URL`, `console` and `host`:
+
+| | |
+| --- | --- |
+| `host.platform`, `host.arch` | such as `darwin`, `arm64` |
+| `host.dir`, `host.dataDir` | the plugin's folder, and one for its data |
+| `host.storage.get(key)`, `.set(key, value)`, `.remove(key)` | JSON values that outlive the app |
+| `host.setting(key)` | what the listener filled in |
+| `host.openURL(url)` | opens a web page in the listener's browser |
+| `host.waitForRedirect({port, path, timeout, page})` | the end of a browser sign-in: listens on `127.0.0.1` and answers the query it's redirected back with. Needs the network permission |
+| `host.spawn(command, args)` | starts a program, by a path from the plugin's folder or absolute. Needs the process permission. Returns `{pid, write(text), closeStdin(), readLine(), wait(), kill()}` |
+
+Everything else takes a permission in `plugin.json`:
+
+- `"network": ["api.example.com", "*.example.com"]` lists the hosts `fetch` can reach, or `["*"]` for any. Without it, `fetch` reaches nothing.
+- `"process": true` asks to start programs, for what JavaScript can't do. The listener has to allow it in Settings first, as a program can do anything they can. Programs end when the plugin does, and once allowed, `fetch` can reach this machine too, to talk to them. Ship one binary per platform and pick it with `host.platform` and `host.arch`.
+
+## Credits
+
+- [folia-major](https://github.com/chthollyphile/folia-major): the lyric stage animations
+
+## License
+
+AGPL-3.0. See [LICENSE](LICENSE).

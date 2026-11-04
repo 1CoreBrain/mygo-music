@@ -1,0 +1,18 @@
+{
+  "id": "demo",
+  "name": "Demo",
+  "version": "1.0.0",
+  "main": "index.js",
+  "playback": "stream",
+  "permissions": {},
+  "settings": [
+    {
+      "key": "greeting",
+      "label": "Greeting",
+      "help": "Shows on the Home page."
+    }
+  ],
+  "navigation": [
+    { "title": "Discover", "page": "discover", "icon": "star" }
+  ]
+}
