@@ -305,7 +305,7 @@ func (a *app) showsPage(c *ui.Context) {
 	ui.Scroll(c.Key(a.route)).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad, bottom+48, pagePad).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
-		a.heading(c, T("Podcasts"), "")
+		a.heading(c, a.builtinTitle("shows"), "")
 		cols := a.columns(c, 150)
 		if !lib.subscribedOnce {
 			a.playlistCardsSkeleton(c, a.pageShimmer(c), cols*2, 150, true)

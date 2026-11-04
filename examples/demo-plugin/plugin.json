@@ -13,6 +13,11 @@
     }
   ],
   "navigation": [
-    { "title": "Discover", "page": "discover", "icon": "star" }
+    { "builtin": "home" },
+    { "title": "Discover", "page": "discover", "icon": "star" },
+    { "builtin": "liked" },
+    { "builtin": "savedAlbums" },
+    { "builtin": "stations" },
+    { "builtin": "shows" }
   ]
 }

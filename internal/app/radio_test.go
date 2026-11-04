@@ -144,3 +144,41 @@ func TestRadioName(t *testing.T) {
 		t.Errorf("source %q of something else", src)
 	}
 }
+
+// A few stations are a switch: the one chosen is what Start Listening plays, and
+// with one playing, choosing another changes to it at once.
+func TestStationSwitch(t *testing.T) {
+	asked := make(chan string, 4)
+	a, ch := radioApp()
+	a.stations = []music.Station{{ID: "a", Name: "First"}, {ID: "b", Name: "Second"}, {ID: "c", Name: "Third"}}
+	fake(a).stationNext = func(id string) ([]music.Track, error) {
+		asked <- id
+		return sourced(song(id+"1", "一"), song(id+"2", "二"), song(id+"3", "三")), nil
+	}
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if err := tt.Click("Second"); err != nil {
+		t.Fatal(err)
+	}
+	settled(tt)
+	if a.pl.Radio() != "" {
+		t.Fatal("choosing one started it")
+	}
+	if err := tt.Click("Start Listening"); err != nil {
+		t.Fatal(err)
+	}
+	if id := wait(t, asked, "the first songs"); id != "b" {
+		t.Fatalf("started %q", id)
+	}
+	until(t, ch, func() bool { return a.pl.Radio() != "" })
+	settled(tt)
+	if err := tt.Click("Third"); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		if id := wait(t, asked, "the other station"); id == "c" {
+			break
+		}
+	}
+	until(t, ch, func() bool { return a.pl.Radio() == radioName("fake", &a.stations[2]) })
+}

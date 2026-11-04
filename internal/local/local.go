@@ -168,9 +168,11 @@ func (s *Source) Info() music.Info {
 		Name:     i18n.T("Local Files"),
 		Playback: music.PlaybackStream,
 		Navigation: []music.NavItem{
+			{Builtin: "home"},
 			{Title: i18n.T("Songs"), Page: "songs", Icon: "note"},
 			{Title: i18n.T("Albums"), Page: "albums", Icon: "album"},
 			{Title: i18n.T("Artists"), Page: "artists", Icon: "artist"},
+			{Builtin: "liked"},
 		},
 	}
 }

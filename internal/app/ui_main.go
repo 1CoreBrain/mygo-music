@@ -216,25 +216,8 @@ func (a *app) sidebar(c *ui.Context) {
 		}
 
 		ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
-			a.navItem(c, iconHome, T("Home"), route{page: pageHome})
-			// What the source adds itself comes first: for the local files,
-			// their songs, albums and artists.
-			if a.can("browse") {
-				for _, n := range a.src.Info().Navigation {
-					a.navItem(c, navIcon(n.Icon), n.Title, route{page: pageBrowse, id: n.Page})
-				}
-			}
-			if a.can("liked") {
-				a.navItem(c, iconHeart, T("Liked Songs"), route{page: pageLiked})
-			}
-			if a.can("savedAlbums") {
-				a.navItem(c, iconAlbum, T("Saved Albums"), route{page: pageSavedAlbums})
-			}
-			if a.can("stations") {
-				a.navItem(c, iconRadio, T("Radio"), route{page: pageStations})
-			}
-			if a.can("shows") {
-				a.navItem(c, iconPodcast, T("Podcasts"), route{page: pageShows})
+			for _, n := range a.sidebarItems() {
+				a.navItem(c, n.icon, n.label, n.route)
 			}
 			if a.searched.query != "" && a.searched.src == a.id {
 				a.navItem(c, iconSearch, T("Search Results"), a.searched)
@@ -543,6 +526,72 @@ func firstPlayable(tracks []music.Track) int {
 		}
 	}
 	return 0
+}
+
+// sidebarItem is an entry of the sidebar.
+type sidebarItem struct {
+	icon  *ui.SVG
+	label string
+	route route
+}
+
+// builtinPages are the app's pages a source's sidebar can have, each with what
+// it needs the source to do, and how it's called and looks by default.
+var builtinPages = map[string]struct {
+	page  pageKind
+	needs string
+	label string
+	icon  func() *ui.SVG
+}{
+	"home":        {pageHome, "", "Home", func() *ui.SVG { return iconHome }},
+	"liked":       {pageLiked, "liked", "Liked Songs", func() *ui.SVG { return iconHeart }},
+	"savedAlbums": {pageSavedAlbums, "savedAlbums", "Saved Albums", func() *ui.SVG { return iconAlbum }},
+	"stations":    {pageStations, "stations", "Radio", func() *ui.SVG { return iconRadio }},
+	"shows":       {pageShows, "shows", "Podcasts", func() *ui.SVG { return iconPodcast }},
+}
+
+// sidebarItems is what the source's Navigation says the sidebar has, or else an
+// entry for each of the app's pages it can do.
+func (a *app) sidebarItems() []sidebarItem {
+	var items []sidebarItem
+	nav := a.src.Info().Navigation
+	if len(nav) == 0 {
+		for _, name := range []string{"home", "liked", "savedAlbums", "stations", "shows"} {
+			nav = append(nav, music.NavItem{Builtin: name})
+		}
+	}
+	for _, n := range nav {
+		if n.Builtin == "" {
+			if a.can("browse") {
+				items = append(items, sidebarItem{navIcon(n.Icon), n.Title, route{page: pageBrowse, id: n.Page}})
+			}
+			continue
+		}
+		b, ok := builtinPages[n.Builtin]
+		if !ok || b.needs != "" && !a.can(b.needs) {
+			continue
+		}
+		item := sidebarItem{b.icon(), n.Title, route{page: b.page}}
+		if item.label == "" {
+			item.label = T(b.label)
+		}
+		if n.Icon != "" {
+			item.icon = navIcon(n.Icon)
+		}
+		items = append(items, item)
+	}
+	return items
+}
+
+// builtinTitle is what the source calls one of the app's pages, or else what the
+// app does.
+func (a *app) builtinTitle(name string) string {
+	for _, n := range a.src.Info().Navigation {
+		if n.Builtin == name && n.Title != "" {
+			return n.Title
+		}
+	}
+	return T(builtinPages[name].label)
 }
 
 // sourceSwitcher chooses the active source, once there is another. It takes no

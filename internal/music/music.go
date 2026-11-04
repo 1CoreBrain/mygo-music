@@ -207,10 +207,14 @@ type Link struct {
 	Page     string `json:"page"`
 }
 
-// NavItem is an entry a source adds to the sidebar, opening a Browse page.
+// NavItem is an entry of the sidebar: a Browse page of the source's own, by
+// Page, or one of the app's, by Builtin.
 type NavItem struct {
 	Title string `json:"title"`
-	Page  string `json:"page"`
+	Page  string `json:"page,omitempty"`
+	// Builtin is home, liked, savedAlbums, stations or shows. One the source
+	// can't do doesn't show.
+	Builtin string `json:"builtin,omitempty"`
 	// Icon names one of the app's: home, note, album, artist, playlist, radio,
 	// podcast, chart, calendar, heart, search or star.
 	Icon string `json:"icon,omitempty"`
@@ -297,7 +301,8 @@ type Info struct {
 	Version  string    `json:"version,omitempty"`
 	Playback Playback  `json:"playback"`
 	Settings []Setting `json:"settings,omitempty"`
-	// Navigation adds entries to the sidebar while the source is active.
+	// Navigation is the sidebar while the source is active, in this order. With
+	// none, the sidebar has an entry for each of the app's pages the source can do.
 	Navigation []NavItem `json:"navigation,omitempty"`
 }
 

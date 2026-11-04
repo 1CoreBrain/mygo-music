@@ -106,6 +106,7 @@ type app struct {
 	tabCount    rollState // the count on the comments' tab, as it rolls
 
 	radioStarting string // the radio asked for its first songs, or ""
+	stationAt     int    // which of a few stations their switch has chosen
 
 	volume     float64
 	volumeOpen bool // the volume popover of the player bar shows

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -153,6 +154,48 @@ func TestNavItemOpensBrowsePage(t *testing.T) {
 	tt.Frame()
 	if _, ok := tt.Find("Top Songs"); ok {
 		t.Error("the entry stayed without browsing")
+	}
+}
+
+// A source's Navigation is its sidebar, in its order and by its names, leaving out
+// what it doesn't list and what it can't do; with none it gets the app's pages.
+func TestNavigationIsTheSidebar(t *testing.T) {
+	a, _, _ := browseApp()
+	f := fake(a)
+	f.caps["stations"], f.caps["liked"], f.caps["shows"] = true, true, true
+	f.info.Navigation = []music.NavItem{
+		{Title: "Top Songs", Page: "top", Icon: "chart"},
+		{Title: "My FM", Builtin: "stations"},
+		{Builtin: "home"},
+		{Title: "Not Possible", Builtin: "savedAlbums"},
+		{Title: "Nonsense", Builtin: "nope"},
+	}
+	a.library.caps = probeCaps(f)
+	without(a, "savedAlbums")
+	got := func() []string {
+		var labels []string
+		for _, item := range a.sidebarItems() {
+			labels = append(labels, item.label)
+		}
+		return labels
+	}
+	if labels := strings.Join(got(), ","); labels != "Top Songs,My FM,Home" {
+		t.Fatalf("sidebar: %s", labels)
+	}
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if err := tt.Click("My FM"); err != nil {
+		t.Fatal(err)
+	}
+	if a.route.page != pageStations {
+		t.Fatalf("opened %+v", a.route)
+	}
+	if _, ok := tt.Find("Liked Songs"); ok {
+		t.Error("an entry the source didn't list")
+	}
+	f.info.Navigation = nil
+	if labels := strings.Join(got(), ","); labels != "Home,Liked Songs,Radio,Podcasts" {
+		t.Fatalf("default sidebar: %s", labels)
 	}
 }
 

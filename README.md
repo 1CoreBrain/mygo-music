@@ -34,7 +34,11 @@ A plugin is a folder in the app's `plugins` directory (Settings > Sources > Show
   "playback": "stream",
   "permissions": { "network": ["api.example.com"] },
   "settings": [{ "key": "apiKey", "label": "API Key", "help": "From your account page", "link": "https://example.com/keys" }],
-  "navigation": [{ "title": "Charts", "page": "charts", "icon": "chart" }]
+  "navigation": [
+    { "builtin": "home" },
+    { "title": "Charts", "page": "charts", "icon": "chart" },
+    { "title": "Stations", "builtin": "stations" }
+  ]
 }
 ```
 
@@ -95,6 +99,8 @@ Export a function for each thing the plugin does. Each takes one object of param
 | `remoteUse` | `{deviceId}` | |
 
 The shapes are in [`internal/music/music.go`](internal/music/music.go) by their JSON names. Times are in milliseconds. A `Browse` is `{title, subtitle, sections}`, and a section can hold `tracks`, `albums`, `artists`, `playlists`, `shows`, `stations`, `links` (`{title, subtitle, imageUrl, page}`) and a `morePage`.
+
+`navigation` is the plugin's sidebar, in its order. An entry opens a `browse` page of its own by `page`, or one of the app's by `builtin`: `home`, `liked`, `savedAlbums`, `stations` or `shows`, which can be given a `title`. Without `navigation`, the sidebar has an entry for each of the app's pages the plugin can do. Up to four stations show as a switch over one card, and more as a grid.
 
 With `"playback": "stream"`, the app plays what `stream` answers. With `"playback": "remote"`, the plugin makes the sound itself, or has another program do so, and the app calls the `remote` functions and polls `remoteState`.
 
