@@ -545,21 +545,30 @@ func firstPlayable(tracks []music.Track) int {
 	return 0
 }
 
-// sourceSwitcher chooses the active source, atop the sidebar, once there is
-// more than one.
+// sourceSwitcher chooses the active source, once there is another. It takes no
+// room of its own: beside the window buttons where they sit over the sidebar, in
+// the strip they leave empty, and elsewhere just a line of text atop it.
 func (a *app) sourceSwitcher(c *ui.Context) {
 	if len(a.libs) < 2 {
 		return
 	}
 	p := a.pal
-	b := ui.ButtonBase(c.Key("source")).Height(32).PaddingX(10).Gap(8).Radius(9).AlignItems(ui.Center).Justify(ui.Start).
-		FocusRing(false).Label(T("Source")).Margin(0, 0, 8, 0).Border(1, p.hairline)
+	const height = 24
+	b := ui.ButtonBase(c.Key("source")).Height(height).PaddingX(7).Gap(4).Radius(7).AlignItems(ui.Center).
+		FocusRing(false).Label(T("Source"))
+	if left := c.TitleBar().Left; left > 0 {
+		b.Absolute().Top((topBar(c) - height) / 2).Left(left + 2).MaxWidth(sidebarWidth - left - 12)
+	} else {
+		b.AlignSelf(ui.Start).Margin(0, 0, 4, -7).MaxWidth(sidebarWidth - 28)
+	}
+	color := p.muted
 	if b.Hovered() {
 		b.Background(p.hover)
+		color = p.text
 	}
 	b.Children(func() {
-		ui.Text(c, a.name()).FontSize(13).FontWeight(600).SingleLine().Grow(1).Shrink(1).MinWidth(0)
-		ui.Icon(c, iconUpDown).Size(13, 13).TextColor(p.faint)
+		ui.Text(c, a.name()).FontSize(12.5).FontWeight(600).TextColor(color).SingleLine().Shrink(1).MinWidth(0)
+		ui.Icon(c, iconUpDown).Size(11, 11).TextColor(p.faint)
 	})
 	b.Menu(func(m *ui.Menu) {
 		for _, lib := range a.libs {
