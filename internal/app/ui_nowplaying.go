@@ -103,14 +103,19 @@ func (a *app) nowPlayingView(c *ui.Context) {
 func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accent ui.Color, w, h float32, pointerIn bool) {
 	pl := a.pl
 	a.commentsFor(tr)
-	// An episode has what it is about in place of lyrics; a song, lyrics in
-	// place of that. Comments are for a source that has them.
+	// An episode has what it is about and its captions in place of lyrics; a
+	// song, lyrics in place of those. Comments are for a source that has them.
 	switch episode := tr.ShowID != ""; {
 	case episode && a.npPane == paneWall:
 		a.npPane = paneQueue
 	case episode && (a.npPane == paneLyrics || a.npPane == paneStage):
 		a.npPane = paneShow
-	case !episode && a.npPane == paneShow:
+		if a.captionsOn() {
+			a.npPane = paneCaptions
+		}
+	case episode && a.npPane == paneCaptions && !a.captionsShown():
+		a.npPane = paneShow
+	case !episode && (a.npPane == paneShow || a.npPane == paneCaptions):
 		a.npPane = a.lyricsPaneChosen()
 	}
 	if a.npPane == paneComments && !a.trackLib(tr).can("comments") {
@@ -220,6 +225,8 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 					a.commentsPane(c, tr)
 				case paneShow:
 					a.showPane(c, tr)
+				case paneCaptions:
+					a.captionsPane(c, tr, h)
 				default:
 					a.queuePane(c)
 				}
@@ -277,6 +284,7 @@ const (
 	paneStage
 	paneComments
 	paneShow
+	paneCaptions
 	paneWall
 )
 
@@ -292,7 +300,11 @@ func (a *app) npTabs() []npTab {
 	tr := a.pl.Current()
 	var tabs []npTab
 	if tr != nil && tr.ShowID != "" {
-		tabs = []npTab{{paneShow, T("About")}, {paneQueue, T("Up Next")}}
+		tabs = []npTab{{paneShow, T("About")}}
+		if a.captionsShown() {
+			tabs = append(tabs, npTab{paneCaptions, T("Captions")})
+		}
+		tabs = append(tabs, npTab{paneQueue, T("Up Next")})
 	} else {
 		tabs = []npTab{{paneLyrics, T("Lyrics")}, {paneStage, T("Stage")}, {paneQueue, T("Up Next")}, {paneWall, T("Wall")}}
 	}

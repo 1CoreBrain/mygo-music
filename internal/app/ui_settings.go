@@ -436,6 +436,10 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 		})
 	})
 
+	if a.captionsShown() && a.anyCan("shows") {
+		add("podcasts", T("Podcasts"), iconPodcast, func(row settingsRow, block settingsBlock) { a.captionSettings(row, c) })
+	}
+
 	add("experiments", T("Experiments"), iconFlask, func(row settingsRow, block settingsBlock) {
 		row(T("Smoke on the Progress Bar"), T("The progress bar turns into a light trailing smoke, moving with the music. Uses a little more power."), func() {
 			if ui.Switch(c.Key("smoke"), &s.Smoke).Label(T("Smoke on the Progress Bar")).Changed() {

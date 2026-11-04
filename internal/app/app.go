@@ -67,6 +67,8 @@ type app struct {
 	plugins []*plugin.Plugin
 	allLibs []*library // every plugin, on or off; libs are those on
 
+	captions captionState // the episode playing's captions, and the model they take
+
 	route   route
 	history []route
 	forward []route // the pages gone back from, the last first to go to
@@ -316,7 +318,10 @@ func Run() error {
 		a.pl.Quality = func() string { return a.settings.Quality }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
 		a.pl.Cache = newSongCache(a.settings.CacheMB)
-		a.pl.Changed = a.keepSession
+		a.pl.Changed = func() {
+			a.keepSession()
+			a.syncCaptions()
+		}
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
 		a.win = mygo.NewWindow(mygo.WindowOptions{

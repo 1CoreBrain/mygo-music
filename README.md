@@ -10,6 +10,7 @@ A native desktop music player written in Go with [MyGo](https://github.com/egois
 - Notch player on macOS, tray, media keys
 - Audio cache, fades on pause and seek, loudness normalization
 - Session restore
+- Podcast captions, written down on the device as episodes play
 - English and Simplified Chinese
 - Plugins can add accounts, catalogs, podcasts, stations, comments and pages of their own
 
@@ -19,6 +20,15 @@ A native desktop music player written in Go with [MyGo](https://github.com/egois
 go tool mygo dev     # run in development
 go tool mygo build   # package into build/
 go test ./internal/...
+```
+
+## Podcast captions
+
+Episodes are written down on the device as they play, with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and Qwen3-ASR, which the app downloads when the listener asks for them. The libraries come from this repository's `sherpa-onnx-<version>` prerelease, which only changes with that version:
+
+```bash
+go run ./scripts/sherpa -sign "Developer ID Application: …"
+gh release create sherpa-onnx-2.0.1 --prerelease --latest=false build/sherpa/*
 ```
 
 ## Plugins

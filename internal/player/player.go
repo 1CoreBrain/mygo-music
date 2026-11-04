@@ -866,3 +866,26 @@ func (p *Player) Restore(s Session) {
 	p.shuffle, p.repeat = s.Shuffle, s.Repeat%3
 	p.loadSkipping(s.At, 0, false, time.Duration(s.Position)*time.Millisecond)
 }
+
+// Audio is the current track's sound, opened apart from what plays by OpenAudio:
+// interleaved stereo at its rate, read as it downloads.
+type Audio interface {
+	SampleRate() int
+	Channels() int
+	Read(dst []float32) (int, error)
+	// SetPosition goes to a frame, of SampleRate a second.
+	SetPosition(frame int64) error
+	Close() error
+}
+
+// OpenAudio opens the current track's sound again, for decoding apart from what
+// plays, as for transcribing an episode. It reads the same download, waiting for
+// what has not come in, and fails once the track changes, or for a track that
+// plays elsewhere. It works on any goroutine once opened; close it when done.
+func (p *Player) OpenAudio() (Audio, error) {
+	if p.stream == nil || p.track == nil {
+		return nil, errors.New("player: nothing loaded")
+	}
+	dl, _ := p.stream.source()
+	return openShared(dl, p.track.Duration)
+}
