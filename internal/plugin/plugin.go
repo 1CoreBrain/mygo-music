@@ -236,7 +236,10 @@ func (v *vm) close() {
 // through ok or bad. An error's code is read here, as Go only sees its message
 // through the exception of what throws.
 const helperBody = `
-const fail = (e) => bad(String((e && e.code) || ""), String((e && e.message) || e));
+const fail = (e) => {
+  const isObject = e !== null && typeof e === "object";
+  bad(String((isObject && e.code) || ""), isObject ? String(e.message || "") : String(e));
+};
 try {
   Promise.resolve(fn(arg)).then((r) => ok(r === undefined ? null : r), fail);
 } catch (e) {
@@ -267,6 +270,10 @@ func (p *Plugin) running() (*vm, error) {
 }
 
 func (p *Plugin) start() (*vm, error) {
+	// host.dataDir is there for the plugin to use, and for programs it starts.
+	if err := os.MkdirAll(p.data, 0o700); err != nil {
+		return nil, err
+	}
 	rt := moejs.NewRuntime(moejs.Options{MemoryLimit: memoryLimit})
 	loop, err := eventloop.New(rt, eventloop.Options{
 		OnError: func(err error) { log.Printf("plugin %s: %v", p.manifest.ID, err) },
@@ -338,9 +345,12 @@ func asError(code, message string) error {
 	case "unsupported":
 		known = music.ErrUnsupported
 	default:
+		if message == "" {
+			return errors.New("the plugin failed")
+		}
 		return errors.New(message)
 	}
-	if message == "" || message == code {
+	if message == "" {
 		return known
 	}
 	return fmt.Errorf("%w: %s", known, message)

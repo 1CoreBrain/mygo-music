@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -66,6 +67,14 @@ func (p *Plugin) installHost(v *vm) error {
 				return moejs.Undefined(), fmt.Errorf("not a web address: %s", address)
 			}
 			return moejs.Undefined(), openURL(address)
+		}),
+		"removeDataDir": moejs.NativeFunc(func(_ *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+			name := moejs.Arg(args, 0).String()
+			// Only something within its own data, and not all of it, which holds ours.
+			if !filepath.IsLocal(name) || filepath.Clean(name) == "." {
+				return moejs.Undefined(), fmt.Errorf("not a folder of the plugin's data: %s", name)
+			}
+			return moejs.Undefined(), os.RemoveAll(filepath.Join(p.data, name))
 		}),
 		"waitForRedirect": moejs.NativeFunc(p.waitForRedirect(v)),
 		"spawn":           moejs.NativeFunc(p.spawn(v)),

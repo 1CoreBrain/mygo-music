@@ -110,6 +110,7 @@ A plugin has the JavaScript standard library, timers, `fetch` and its relatives,
 | `host.dir`, `host.dataDir` | the plugin's folder, and one for its data |
 | `host.storage.get(key)`, `.set(key, value)`, `.remove(key)` | JSON values that outlive the app |
 | `host.setting(key)` | what the listener filled in |
+| `host.removeDataDir(name)` | removes a folder inside `host.dataDir` |
 | `host.openURL(url)` | opens a web page in the listener's browser |
 | `host.waitForRedirect({port, path, timeout, page})` | the end of a browser sign-in: listens on `127.0.0.1` and answers the query it's redirected back with. Needs the network permission |
 | `host.spawn(command, args)` | starts a program, by a path from the plugin's folder or absolute. Needs the process permission. Returns `{pid, write(text), closeStdin(), readLine(), wait(), kill()}` |

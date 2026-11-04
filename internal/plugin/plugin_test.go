@@ -367,3 +367,36 @@ func TestDiscover(t *testing.T) {
 		t.Fatalf("defaults: %+v", i)
 	}
 }
+
+// A plugin can clear a folder of its own data, as signing out does, but nothing
+// outside it, nor all of it, which holds the app's records of it too.
+func TestRemoveDataDir(t *testing.T) {
+	p := load(t, plain, `
+export function suggest({ query }) { host.removeDataDir(query); return []; }`)
+	if _, err := p.Suggest("x"); err != nil {
+		t.Fatal(err) // starting it makes the data directory
+	}
+	inside := filepath.Join(p.data, "cache", "file")
+	os.MkdirAll(filepath.Dir(inside), 0o700)
+	os.WriteFile(inside, []byte("x"), 0o600)
+	outside := filepath.Join(filepath.Dir(p.data), "other")
+	os.WriteFile(outside, []byte("x"), 0o600)
+
+	for _, bad := range []string{"..", "../other", ".", "", "/etc"} {
+		if _, err := p.Suggest(bad); err == nil {
+			t.Errorf("removed %q", bad)
+		}
+	}
+	if _, err := os.Stat(outside); err != nil {
+		t.Errorf("outside its data: %v", err)
+	}
+	if _, err := os.Stat(inside); err != nil {
+		t.Errorf("after the refusals: %v", err)
+	}
+	if _, err := p.Suggest("cache"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(inside); !os.IsNotExist(err) {
+		t.Errorf("still there: %v", err)
+	}
+}
