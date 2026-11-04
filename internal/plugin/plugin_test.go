@@ -22,6 +22,10 @@ import (
 const echoEnv = "MYGO_MUSIC_TEST_ECHO"
 
 func TestMain(m *testing.M) {
+	if os.Getenv(echoEnv) == "fail" {
+		fmt.Fprintln(os.Stderr, "the reason it stopped")
+		os.Exit(1)
+	}
 	if os.Getenv(echoEnv) != "" {
 		sc := bufio.NewScanner(os.Stdin)
 		for sc.Scan() {
@@ -398,5 +402,30 @@ export function suggest({ query }) { host.removeDataDir(query); return []; }`)
 	}
 	if _, err := os.Stat(inside); !os.IsNotExist(err) {
 		t.Errorf("still there: %v", err)
+	}
+}
+
+// A program that stops says why, for the plugin to tell the listener rather than
+// leave them waiting.
+func TestProgramSaysWhyItStopped(t *testing.T) {
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(echoEnv, "fail")
+	p := load(t, `{"id":"x","permissions":{"process":true}}`, `
+export async function suggest() {
+  const proc = host.spawn(host.setting("program"), []);
+  const code = await proc.wait();
+  return [String(code), proc.errorOutput()];
+}`)
+	p.Grant(true)
+	p.SetSetting("program", self)
+	got, err := p.Suggest("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0] != "1" || !strings.Contains(got[1], "the reason it stopped") {
+		t.Fatalf("got %q", got)
 	}
 }

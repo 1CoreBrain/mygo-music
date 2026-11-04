@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MoeForge/moejs"
@@ -229,7 +230,8 @@ func (p *Plugin) spawn(v *vm) native {
 		}
 		cmd := exec.Command(command, cmdArgs...)
 		cmd.Dir = p.dir
-		cmd.Stderr = logWriter{p.manifest.ID}
+		stderr := &tailWriter{to: logWriter{p.manifest.ID}}
+		cmd.Stderr = stderr
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
 			return moejs.Undefined(), err
@@ -267,6 +269,10 @@ func (p *Plugin) spawn(v *vm) native {
 		}()
 		return rt.FromGo(map[string]any{
 			"pid": cmd.Process.Pid,
+			// errorOutput answers the end of what it wrote to stderr, to say why it stopped.
+			"errorOutput": moejs.NativeFunc(func(*moejs.Realm, moejs.Value, []moejs.Value) (moejs.Value, error) {
+				return moejs.String(stderr.String()), nil
+			}),
 			"write": moejs.NativeFunc(func(_ *moejs.Realm, _ moejs.Value, a []moejs.Value) (moejs.Value, error) {
 				_, err := io.WriteString(stdin, moejs.Arg(a, 0).String())
 				return moejs.Undefined(), err
@@ -309,6 +315,31 @@ func (p *Plugin) spawn(v *vm) native {
 			}),
 		})
 	}
+}
+
+// tailWriter passes on what's written and keeps the end of it.
+type tailWriter struct {
+	to   io.Writer
+	mu   sync.Mutex
+	tail []byte
+}
+
+const tailSize = 8 << 10
+
+func (w *tailWriter) Write(b []byte) (int, error) {
+	w.mu.Lock()
+	w.tail = append(w.tail, b...)
+	if len(w.tail) > tailSize {
+		w.tail = append(w.tail[:0], w.tail[len(w.tail)-tailSize:]...)
+	}
+	w.mu.Unlock()
+	return w.to.Write(b)
+}
+
+func (w *tailWriter) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return string(w.tail)
 }
 
 // logWriter puts what a program writes to stderr in the log, under its plugin.
