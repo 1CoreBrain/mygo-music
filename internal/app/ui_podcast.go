@@ -327,7 +327,7 @@ func (a *app) showsPage(c *ui.Context) {
 func (a *app) showCard(c *ui.Context, show *music.Show) {
 	id := show.ID
 	lib := a.library
-	if a.coverCard(c, show.Name, show.ImageURL, show.Publisher, func() { a.playShow(lib, id) }) {
+	if a.coverCardWith(c, show.Name, show.ImageURL, iconPodcast, show.Publisher, func() { a.playShow(lib, id) }) {
 		a.open(route{page: pageShow, id: id})
 	}
 }

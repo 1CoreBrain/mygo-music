@@ -168,7 +168,7 @@ func (a *app) stationsPage(c *ui.Context) {
 // stationCard is a station's cover over its name: a click plays it.
 func (a *app) stationCard(c *ui.Context, st *music.Station) {
 	lib := a.library
-	if a.coverCard(c, st.Name, st.ImageURL, st.Description, func() { a.playStation(lib, st) }) {
+	if a.coverCardWith(c, st.Name, st.ImageURL, iconRadio, st.Description, func() { a.playStation(lib, st) }) {
 		a.playStation(lib, st)
 	}
 }

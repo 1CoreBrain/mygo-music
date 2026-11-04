@@ -183,6 +183,12 @@ func playlistLine(pl *music.Playlist) string {
 // its name and a line under that. The button on the cover, if there's something
 // for it to call, calls play; it reports whether the rest was clicked.
 func (a *app) coverCard(c *ui.Context, name, cover, sub string, play func()) bool {
+	return a.coverCardWith(c, name, cover, iconNote, sub, play)
+}
+
+// coverCardWith is a card that shows icon if there's no cover to show, as a
+// source needn't have one.
+func (a *app) coverCardWith(c *ui.Context, name, cover string, icon *ui.SVG, sub string, play func()) bool {
 	p := a.pal
 	// From the top: a grid stretches the cards of a row as tall as the
 	// tallest, whose name or line under it takes two lines.
@@ -200,6 +206,11 @@ func (a *app) coverCard(c *ui.Context, name, cover, sub string, play func()) boo
 		art.AnimatePose(lift, ui.Snappy)
 		art.Children(func() {
 			a.coverFill(c, cover, 400, 10)
+			if cover == "" {
+				ui.Row(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, icon).Size(40, 40).TextColor(p.faint)
+				})
+			}
 			if play != nil {
 				a.coverPlayButton(c, hovered, play)
 			}
