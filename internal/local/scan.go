@@ -239,7 +239,7 @@ func walk(ctx context.Context, folders []string) []found {
 				return nil
 			}
 			switch strings.ToLower(filepath.Ext(name)) {
-			case ".mp3", ".flac":
+			case ".mp3", ".flac", ".ogg":
 			default:
 				return nil
 			}
@@ -333,9 +333,12 @@ func (s *Source) readFile(file found) (entry, bool) {
 			e.Artist = artist
 		}
 	}
-	if typ == "flac" {
+	switch typ {
+	case "flac":
 		e.Duration = flacDuration(f)
-	} else {
+	case "ogg":
+		e.Duration = oggDuration(f, file.size)
+	default:
 		e.Duration = mp3Duration(f, file.size)
 	}
 	if t.picture != nil {
@@ -500,18 +503,24 @@ func coverExt(pic *tag.Picture) string {
 	return ""
 }
 
-// fileType says whether a file is an mp3 or a flac: by what it holds if that
+// fileType says whether a file is an mp3, a flac or an ogg: by what it holds if that
 // tells, and else by its name.
 func fileType(f io.ReaderAt, path string) string {
 	var head [4]byte
 	if _, err := f.ReadAt(head[:], id3v2Size(f)); err == nil && string(head[:]) == "fLaC" {
 		return "flac"
 	}
+	if string(head[:]) == "OggS" {
+		return "ogg"
+	}
 	if _, ok := parseFrameHeader(head[:]); ok {
 		return "mp3"
 	}
-	if strings.EqualFold(filepath.Ext(path), ".flac") {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".flac":
 		return "flac"
+	case ".ogg":
+		return "ogg"
 	}
 	return "mp3"
 }

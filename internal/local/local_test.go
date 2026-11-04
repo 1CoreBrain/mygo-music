@@ -531,7 +531,7 @@ func TestWalkFinds(t *testing.T) {
 	write(t, filepath.Join(dir, "lower.flac"), fixture(t, "seek.flac"))
 	write(t, filepath.Join(dir, ".hidden", "no.mp3"), audio)
 	write(t, filepath.Join(dir, "._lower.mp3"), audio)
-	write(t, filepath.Join(dir, "no.ogg"), audio)
+	write(t, filepath.Join(dir, "no.wav"), audio)
 	write(t, filepath.Join(dir, "empty.mp3"), nil)
 	s := scanned(t, dir)
 	got := names(songs(t, s))
@@ -1253,5 +1253,36 @@ func TestScanSuperseded(t *testing.T) {
 	}
 	if s.Scanning() {
 		t.Error("still scanning")
+	}
+}
+
+// An Ogg Vorbis file is found like the others, with its tags and length, and
+// plays as what it is, whatever it's named.
+func TestScanFindsOgg(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.ogg"), fixture(t, "seek.ogg"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := scanned(t, dir)
+	r, err := s.Search("Ogg Title", music.SearchTracks, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Tracks) != 1 {
+		t.Fatalf("found %d tracks", len(r.Tracks))
+	}
+	tr := r.Tracks[0]
+	if tr.Name != "Ogg Title" || tr.ArtistNames() != "Ogg Artist" || tr.Album.Name != "Ogg Album" {
+		t.Errorf("tags: %+v", tr)
+	}
+	if tr.Duration < 4900 || tr.Duration > 5100 {
+		t.Errorf("duration: %d", tr.Duration)
+	}
+	st, err := s.Stream(tr.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Type != "ogg" {
+		t.Errorf("type: %s", st.Type)
 	}
 }

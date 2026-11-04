@@ -318,12 +318,17 @@ type stream interface {
 	source() (*download, *spectrum)
 }
 
-// openStream opens the song dl fetches, MP3 or FLAC, as its first bytes
+// openStream opens the song dl fetches, MP3, FLAC or Ogg Vorbis, as its first bytes
 // say. An MP3 says nothing of its length: durationMs is it.
 func openStream(dl *download, durationMs int64) (stream, error) {
 	off := id3Size(dl)
-	if dl.waitFor(off+4) >= off+4 && string(dl.peek(off, 4)) == "fLaC" {
-		return openFLACStream(dl)
+	if dl.waitFor(off+4) >= off+4 {
+		switch string(dl.peek(off, 4)) {
+		case "fLaC":
+			return openFLACStream(dl)
+		case "OggS":
+			return openOggStream(dl, durationMs)
+		}
 	}
 	return openMP3Stream(dl, durationMs)
 }

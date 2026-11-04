@@ -383,3 +383,83 @@ func TestStreamSizeIsNotTrusted(t *testing.T) {
 		t.Errorf("set aside %d bytes", n)
 	}
 }
+
+// An Ogg Vorbis file gives its length and lands on the frame it's asked for.
+func TestOggSeek(t *testing.T) {
+	b, err := os.ReadFile("testdata/seek.ogg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	straight, err := openStream(downloaded(b), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The encoder rounds a file up to its last block.
+	if n := straight.Len(); straight.SampleRate() != 44100 || n < 5*44100 || n > 5*44100+1024 {
+		t.Fatalf("rate %d, length %d", straight.SampleRate(), n)
+	}
+	var ref []float32
+	buf := make([]float32, 4096)
+	for {
+		n, err := straight.Read(buf)
+		ref = append(ref, buf[:n]...)
+		if err != nil {
+			break
+		}
+	}
+	if int64(len(ref)) < 5*44100*2 {
+		t.Fatalf("decoded %d samples", len(ref))
+	}
+	s, err := openStream(downloaded(b), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, frame := range []int64{0, 4096, 50000, 123457, 200000} {
+		if err := s.SetPosition(frame); err != nil {
+			t.Fatal(err)
+		}
+		n, err := s.Read(buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Past the first block, which overlaps what a straight decode had before it.
+		if d := maxDiff(buf[n/2:n], ref[frame*2+int64(n/2):]); d > 0.001 {
+			t.Errorf("seek to %d: off by up to %.4f", frame, d)
+		}
+	}
+}
+
+// One still coming in plays without waiting for its end, with the length its
+// source says, and only waits for the rest once it's asked to seek.
+func TestOggComingIn(t *testing.T) {
+	b, err := os.ReadFile("testdata/seek.ogg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dl := downloaded(b)
+	dl.done = false
+	s, err := openStream(dl, 4000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Len() != 4*44100 {
+		t.Fatalf("length %d: not what the source said", s.Len())
+	}
+	buf := make([]float32, 4096)
+	if _, err := s.Read(buf); err != nil {
+		t.Fatal(err)
+	}
+	dl.mu.Lock()
+	dl.done = true
+	dl.cond.Broadcast()
+	dl.mu.Unlock()
+	if err := s.SetPosition(100000); err != nil {
+		t.Fatal(err)
+	}
+	if s.Len() < 5*44100 {
+		t.Fatalf("length %d once it could tell", s.Len())
+	}
+	if _, err := s.Read(buf); err != nil {
+		t.Fatal(err)
+	}
+}

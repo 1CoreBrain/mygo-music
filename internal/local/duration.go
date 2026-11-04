@@ -3,10 +3,13 @@ package local
 import (
 	"encoding/binary"
 	"io"
+
+	"github.com/jfreymuth/oggvorbis"
 )
 
 // Tags don't say how long a song is, and decoding it all to find out would make
-// a scan take as long as the music does. Both formats say near their start.
+// a scan take as long as the music does. MP3 and FLAC say near their start, and
+// Ogg on its last page.
 
 // id3v2Size is how many bytes an ID3v2 tag at the start takes, if there's one.
 func id3v2Size(r io.ReaderAt) int64 {
@@ -183,4 +186,19 @@ func countedFrames(frame []byte, h frameHeader) int64 {
 		return int64(binary.BigEndian.Uint32(frame[vbri+14:]))
 	}
 	return 0
+}
+
+// oggDuration reads an Ogg Vorbis file's milliseconds from its last page, or 0
+// if it isn't one, or is one the decoder panics on.
+func oggDuration(r io.ReaderAt, size int64) (ms int64) {
+	defer func() {
+		if recover() != nil {
+			ms = 0
+		}
+	}()
+	d, err := oggvorbis.NewReader(io.NewSectionReader(r, 0, size))
+	if err != nil || d.SampleRate() == 0 {
+		return 0
+	}
+	return d.Length() * 1000 / int64(d.SampleRate())
 }

@@ -85,7 +85,7 @@ Export a function for each thing the plugin does. Each takes one object of param
 | `likeComment` | `{trackId, commentId, on}` | |
 | `postComment` | `{trackId, text}` | `Comment` |
 | `lyrics` | `{id}` | `{lrc, translation}`, or `{lines}` with timed `words` |
-| `stream` | `{id, quality}` | `{url, type, headers, size, gain, peak}`, where `type` is `mp3` or `flac` |
+| `stream` | `{id, quality}` | `{url, type, headers, size, gain, peak}`, where `type` is `mp3`, `flac` or `ogg` |
 | `remotePlay` | `{ids, start, position}` | |
 | `remotePause`, `remoteResume` | | |
 | `remoteSeek` | `{position}` | |

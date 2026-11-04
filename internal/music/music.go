@@ -220,7 +220,7 @@ type NavItem struct {
 // answers for a track.
 type Stream struct {
 	URL     string            `json:"url"`
-	Type    string            `json:"type"` // mp3 or flac
+	Type    string            `json:"type"` // mp3, flac or ogg
 	Quality string            `json:"quality,omitempty"`
 	BitRate int               `json:"bitRate,omitempty"`
 	Size    int64             `json:"size,omitempty"`
