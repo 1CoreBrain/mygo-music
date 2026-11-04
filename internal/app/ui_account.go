@@ -119,6 +119,11 @@ func (a *app) startSignIn() {
 			}
 			lib.account = acc
 			a.afterAccount(lib)
+			// Signed in to another source from the settings: that's the one they're
+			// after. One finishing after they closed the dialog doesn't move them.
+			if current && a.library != lib {
+				a.switchSource(lib.id)
+			}
 		})
 	}()
 }

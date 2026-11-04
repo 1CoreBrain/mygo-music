@@ -792,3 +792,33 @@ type promptingSource struct {
 }
 
 func (s *promptingSource) OnSignInPrompt(show func(music.SignInPrompt)) { s.show = show }
+
+// Signing in to a source other than the active one goes to it. If the listener
+// closed the dialog before it finished, it signs in without moving them.
+func TestSignInSwitchesToTheSource(t *testing.T) {
+	signIn := func(closed bool) (*app, *library) {
+		release := make(chan struct{})
+		a := newTestApp()
+		ch := posts(a)
+		src := newFakeSource("other")
+		src.signIn = func() (*music.Account, error) {
+			<-release
+			return &music.Account{ID: "1", Name: "Me"}, nil
+		}
+		lib := addFake(a, src)
+		a.promptSignIn(lib)
+		a.startSignIn()
+		if closed {
+			a.promptSignIn(a.libs[0]) // another dialog since
+		}
+		close(release)
+		until(t, ch, func() bool { return lib.account != nil })
+		return a, lib
+	}
+	if a, lib := signIn(false); a.library != lib {
+		t.Errorf("still on %s after signing in", a.library.id)
+	}
+	if a, lib := signIn(true); a.library == lib {
+		t.Error("moved after the dialog had gone")
+	}
+}
