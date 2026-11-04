@@ -92,7 +92,6 @@ var zhCN = map[string]string{
 	"Couldn't remove it from the playlist. Try again later.": "移除失败，请稍后再试",
 	"Couldn't rename the playlist. Try again later.":         "重命名失败，请稍后再试",
 	"Couldn't sign out":                                      "退出登录失败",
-	"Couldn't start: %s":                                     "无法启动：%s",
 	"Create":                                                 "创建",
 	"Creating…":                                              "正在创建…",
 	"Current Version %s":                                     "当前版本 %s",

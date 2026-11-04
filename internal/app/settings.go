@@ -124,15 +124,19 @@ func (s settings) save() error {
 	return os.WriteFile(path, b, 0o600)
 }
 
-// applyAppearance makes the windows light, dark, or follow the system.
+// applyAppearance makes the windows light, dark, or follow the system. Only
+// a new one: it repaints every window, waiting for the main thread, and any
+// setting changed applies it.
 func (s settings) applyAppearance() {
+	src := mygo.ThemeSystem
 	switch s.Appearance {
 	case "light":
-		mygo.Theme.SetSource(mygo.ThemeLight)
+		src = mygo.ThemeLight
 	case "dark":
-		mygo.Theme.SetSource(mygo.ThemeDark)
-	default:
-		mygo.Theme.SetSource(mygo.ThemeSystem)
+		src = mygo.ThemeDark
+	}
+	if src != mygo.Theme.Source() {
+		mygo.Theme.SetSource(src)
 	}
 }
 

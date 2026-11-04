@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -652,30 +653,120 @@ func TestAccountAskedOnStart(t *testing.T) {
 	}
 }
 
-// The active source's pages load once what it can do is known.
-func TestLearnStartsTheActiveSource(t *testing.T) {
+// A plugin shows as itself in the first frame, before anything it was asked has
+// come back: this showed the app's default sidebar until a goroutine had asked
+// what it can do, and then "sign in" to someone signed in, each moving what's
+// around them.
+func TestSourceShowsAsItselfAtOnce(t *testing.T) {
 	a := newTestApp()
 	ch := posts(a)
-	home := make(chan struct{}, 1)
-	fake(a).home = func() (*music.Browse, error) { home <- struct{}{}; return nil, nil }
-	a.library.caps, a.library.started = map[string]bool{}, false
-	a.learn(a.library)
-	until(t, ch, func() bool { return len(a.library.caps) > 0 })
-	wait(t, home, "Home")
+	f := newFakeSource("plugin")
+	f.info.Navigation = []music.NavItem{{Title: "Daily", Page: "daily"}}
+	answer := make(chan struct{})
+	f.account = func() (*music.Account, error) {
+		<-answer
+		return &music.Account{ID: "1", Name: "小明"}, nil
+	}
+	lib := newLibrary(f)
+	a.libs, a.allLibs, a.library = []*library{lib}, []*library{lib}, lib
+	a.route = route{page: pageHome, src: lib.id}
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	check := func() {
+		t.Helper()
+		if _, ok := tt.Find("Daily"); !ok {
+			t.Error("its own page isn't in the sidebar")
+		}
+		if tt.HasText("Sign in to plugin") || tt.HasText("Settings") {
+			t.Error("the account's row says what isn't known yet")
+		}
+	}
+	check()
+	a.startLibrary(lib)
+	tt.Frame()
+	check()
+	close(answer)
+	until(t, ch, func() bool { return a.account != nil })
+	tt.Frame()
+	if !tt.HasText("小明") {
+		t.Error("who's signed in doesn't show")
+	}
 }
 
-// A source that won't start can do nothing, and says why, for the settings.
-func TestLearnSaysWhyASourceWontStart(t *testing.T) {
+// Who's signed in, said for the first time, changes nothing listed as the source
+// started: Home loaded twice at each launch, its picks changing under the listener.
+func TestFirstAccountLoadsNothingAgain(t *testing.T) {
 	a := newTestApp()
 	ch := posts(a)
-	fake(a).caps = map[string]bool{}
-	fake(a).account = func() (*music.Account, error) { return nil, errors.New("no such binary") }
-	a.library.caps, a.library.started = map[string]bool{}, false
-	a.learn(a.library)
-	until(t, ch, func() bool { return a.library.startErr != "" })
-	if a.library.startErr != "no such binary" || len(a.library.caps) != 0 {
-		t.Errorf("it says %q, can do %v", a.library.startErr, a.library.caps)
+	f := fake(a)
+	f.account = func() (*music.Account, error) { return &music.Account{ID: "1", Name: "小明"}, nil }
+	asked, answer := make(chan struct{}, 4), make(chan struct{})
+	f.home = func() (*music.Browse, error) {
+		asked <- struct{}{}
+		<-answer
+		return &music.Browse{Sections: []music.Section{{Title: "Picks"}}}, nil
 	}
+	a.library.started, a.library.accountAsked = false, false
+	a.startLibrary(a.library)
+	wait(t, asked, "Home")
+	until(t, ch, func() bool { return a.account != nil })
+	close(answer)
+	until(t, ch, func() bool { return a.home != nil })
+	select {
+	case <-asked:
+		t.Error("Home was asked for again")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// What the source refused as it started, not knowing the listener yet, it's asked
+// again once it says who they are.
+func TestFirstAccountLoadsAgainWhatFailed(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	f := fake(a)
+	answer := make(chan struct{})
+	f.account = func() (*music.Account, error) {
+		<-answer
+		return &music.Account{ID: "1", Name: "小明"}, nil
+	}
+	f.home = func() (*music.Browse, error) { return nil, errors.New("not yet") }
+	a.library.started, a.library.accountAsked = false, false
+	a.startLibrary(a.library)
+	until(t, ch, func() bool { return a.homeErr != "" })
+	f.home = func() (*music.Browse, error) {
+		return &music.Browse{Sections: []music.Section{{Title: "Picks"}}}, nil
+	}
+	close(answer)
+	until(t, ch, func() bool { return a.home != nil })
+}
+
+// A heart asked about before the source said who's signed in is asked about again
+// after: its answer is dropped, which left it empty for good.
+func TestLikeAskedBeforeAccountAskedAgain(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	f := fake(a)
+	accountGo, likedGo := make(chan struct{}), make(chan struct{})
+	f.account = func() (*music.Account, error) {
+		<-accountGo
+		return &music.Account{ID: "1", Name: "小明"}, nil
+	}
+	f.isLiked = func(ids []string) (map[string]bool, error) {
+		<-likedGo
+		return map[string]bool{"1": true}, nil
+	}
+	a.library.started, a.library.accountAsked = false, false
+	a.startLibrary(a.library)
+	tr := song("1", "Song")
+	a.wantLike(&tr)
+	a.askLikes()
+	close(accountGo)
+	until(t, ch, func() bool { return a.account != nil })
+	close(likedGo)
+	a.wantLike(&tr)
+	a.askLikes()
+	until(t, ch, func() bool { return a.isLiked(&tr) })
 }
 
 // Changing the language says the app's words in it from the next frame on, and

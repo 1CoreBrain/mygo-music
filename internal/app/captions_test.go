@@ -80,8 +80,8 @@ func TestAddSegmentOnce(t *testing.T) {
 	}
 }
 
-// captionsTestApp plays an episode in Now Playing, with the libraries in
-// the app and the model installed or not.
+// captionsTestApp plays an episode in Now Playing, with captions turned on
+// and the model installed or not.
 func captionsTestApp(t *testing.T, installed bool) *app {
 	oldAvail, oldInstalled := captionsAvailable, modelInstalled
 	t.Cleanup(func() { captionsAvailable, modelInstalled = oldAvail, oldInstalled })
@@ -89,13 +89,14 @@ func captionsTestApp(t *testing.T, installed bool) *app {
 	modelInstalled = func(string) bool { return installed }
 	a := newTestApp()
 	a.settings = defaultSettings()
+	a.settings.Captions = true
 	a.pl.Cue([]music.Track{{ID: "7", Source: "fake", Name: "510 泰国侨批沉浮录", ShowID: "42", Duration: 600000, Description: "下南洋"}})
 	a.nowPlaying = true
 	return a
 }
 
 // Without the model, the episode's captions offer to download it, and
-// 下载模型 starts the download.
+// Download Model starts the download.
 func TestDownloadModelFromCaptions(t *testing.T) {
 	a := captionsTestApp(t, false)
 	started := make(chan struct{}, 1)
@@ -116,7 +117,7 @@ func TestDownloadModelFromCaptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if err := tt.Click("下载模型"); err != nil {
+	if err := tt.Click("Download Model"); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -128,7 +129,7 @@ func TestDownloadModelFromCaptions(t *testing.T) {
 	if !a.captions.model.downloading {
 		t.Fatal("not downloading")
 	}
-	if err := tt.Click("取消"); err != nil {
+	if err := tt.Click("Cancel"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -178,7 +179,7 @@ func TestCaptionsOnTheirWay(t *testing.T) {
 		a.captions.model = modelState{checked: true, installed: true}
 		tt.Frame()
 		tt.Frame()
-		if !tt.HasText("Recognizing…") || tt.HasText("上一期") || tt.HasText("No speech found in this episode") || tt.HasText("字幕生成失败") {
+		if !tt.HasText("Recognizing…") || tt.HasText("上一期") || tt.HasText("No speech found in this episode") || tt.HasText("Couldn't make captions") {
 			t.Errorf("%s: %q", c.name, tt.Texts())
 		}
 	}

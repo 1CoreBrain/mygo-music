@@ -19,10 +19,6 @@ import (
 
 // openSettings shows the settings window, opening it the first time.
 func (a *app) openSettings() {
-	// It lists all the sources, with what each can do.
-	for _, lib := range a.libs {
-		a.learn(lib)
-	}
 	if a.win == nil {
 		return // no app to show a window in, as in tests
 	}
@@ -575,8 +571,6 @@ func (a *app) pluginSettings(c *ui.Context, lib *library, p palette) {
 				ui.Text(c, name).FontSize(13.5).FontWeight(500)
 				switch {
 				case !enabled:
-				case lib.startErr != "":
-					ui.Text(c, Tf("Couldn't start: %s", lib.startErr)).FontSize(12).TextColor(p.accent).LineHeight(1.4)
 				case lib.needsSetup:
 					ui.Text(c, T("Fill these in for it to work")).FontSize(12).TextColor(p.accent).LineHeight(1.4)
 				case lib.account != nil:

@@ -54,8 +54,10 @@ func (a *app) homePage(c *ui.Context) {
 		a.browseRows(c, lib.home, "", func(c *ui.Context) { a.homeHello(c, now) })
 		return
 	}
-	nothing := len(lib.recent) == 0 && len(lib.mine) == 0 && len(lib.saved) == 0
-	loading := lib.homeLoading || len(lib.caps) == 0
+	loading := lib.homeLoading || !lib.started || lib.accountUnknown()
+	// A source that makes up its own Home shows none of this one until it said
+	// it has none: its playlists, loaded first, would show here, then make way.
+	nothing := len(lib.recent) == 0 && len(lib.mine) == 0 && len(lib.saved) == 0 || lib.can("home") && loading
 	if nothing && !loading {
 		if lib.homeErr != "" {
 			a.centered(c, lib.homeErr, func() { a.loadHome(lib) })
@@ -70,7 +72,7 @@ func (a *app) homePage(c *ui.Context) {
 		defer a.endMark(c)
 		ui.Box(c).PaddingX(12).Children(func() { a.homeHello(c, now) })
 		if nothing {
-			a.homeSkeleton(c, a.pageShimmer(c))
+			a.homeSkeleton(c, a.pageShimmer(c), lib.can("home"))
 			return
 		}
 		if len(lib.recent) > 0 {

@@ -345,11 +345,10 @@ func (s *fakeSource) RemoteUse(deviceID string) error        { return music.ErrU
 
 var _ music.Source = (*fakeSource)(nil)
 
-// addFake adds a library of src to the app, with what it can do known.
+// addFake adds a library of src to the app, started as if it had answered.
 func addFake(a *app, src music.Source) *library {
 	lib := newLibrary(src)
-	lib.caps = probeCaps(src)
-	lib.started = true
+	lib.started, lib.accountAsked = true, true
 	a.libs = append(a.libs, lib)
 	a.allLibs = append(a.allLibs, lib)
 	return lib

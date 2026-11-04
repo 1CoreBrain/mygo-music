@@ -340,13 +340,15 @@ type Recorder interface {
 	Played(track Track)
 }
 
-// Source is where music comes from. Everything may take a while and is called
-// off the main thread. A source that doesn't do something answers
-// ErrUnsupported, and Can says so beforehand for the views to leave it out.
+// Source is where music comes from. Everything but Info and Can may take a
+// while and is called off the main thread. A source that doesn't do something
+// answers ErrUnsupported, and Can says so beforehand for the views to leave it
+// out.
 type Source interface {
 	Info() Info
 	// Can reports whether the source does what's named, by the name of its
-	// plugin's function, such as "lyrics" or "like".
+	// plugin's function, such as "lyrics" or "like". It answers at once, on
+	// the main thread, without starting anything.
 	Can(what string) bool
 
 	Setting(key string) string

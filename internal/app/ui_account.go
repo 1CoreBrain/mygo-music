@@ -44,13 +44,21 @@ func (a *app) loadAccount(lib *library) {
 		acc, err := lib.src.Account()
 		a.post(func() {
 			lib.accountBusy = false
+			first := !lib.accountAsked
+			lib.accountAsked = true
 			if err != nil {
 				a.problem(lib, err, T("Couldn't reach this plugin"))
 				return
 			}
 			was := lib.account
 			lib.account = acc
-			if was != nil && acc == nil || was == nil && acc != nil {
+			switch {
+			case first && was == nil && acc != nil && lib.homeErr == "" && !lib.needsSignIn:
+				// What it listed as it started was already this listener's, and
+				// loading it again could only move it. But hearts asked about
+				// before they were known are dropped as someone else's.
+				lib.liked = nil
+			case (was == nil) != (acc == nil):
 				a.afterAccount(lib)
 			}
 		})
@@ -59,6 +67,7 @@ func (a *app) loadAccount(lib *library) {
 
 // afterAccount loads anew what's personal to who listens to a source.
 func (a *app) afterAccount(lib *library) {
+	lib.accountAsked = true
 	lib.forget()
 	lib.needsSignIn, lib.askedSignIn = false, false
 	a.loadMine(lib)
@@ -220,6 +229,15 @@ func drawQR(p *ui.Painter, r ui.Rect, code *qr.Code, pad float32) {
 func (a *app) accountRow(c *ui.Context) {
 	p := a.pal
 	lib := a.library
+	// As tall as what takes its place, and no way to sign in to whoever may be.
+	if lib.account == nil && lib.accountUnknown() {
+		s := a.pageShimmer(c)
+		ui.Row(c.Key("account-unknown")).Height(40).PaddingX(8).Gap(10).AlignItems(ui.Center).Children(func() {
+			s.bone(c, 13).Size(26, 26)
+			s.text(c, 13, 1.3).Width(96)
+		})
+		return
+	}
 	b := ui.ButtonBase(c.Key("account")).Height(40).PaddingX(8).Gap(10).Radius(10).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
 	if b.Hovered() || a.accountOpen && lib.account != nil {
 		b.Background(p.hover)

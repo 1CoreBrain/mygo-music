@@ -19,9 +19,9 @@ func Tf(format string, args ...any) string { return i18n.Tf(format, args...) }
 // N marks text kept in a table for T to translate when it shows.
 func N(text string) string { return i18n.N(text) }
 
-// capabilities are the names a source's Can is asked about, ahead of the views
-// that hide what it can't do: asking a plugin can start it, which can't wait
-// on the main thread.
+// capabilities are the names a source's Can is asked about as its library is
+// made, ahead of the views that hide what it can't do. A plugin knows from
+// compiling it, so the first frame shows the source as it stays.
 var capabilities = []string{
 	"signIn", "signOut", "account",
 	"search", "suggest",
@@ -50,16 +50,14 @@ func probeCaps(src music.Source) map[string]bool {
 // so an answer that comes after the listener switched to another source lands
 // where it belongs, and shows when they come back.
 type library struct {
-	id       string
-	src      music.Source
-	caps     map[string]bool // what it can do, once asked
-	learning bool            // what it can do is being asked
-	// startErr says why it wouldn't start, for the settings.
-	startErr string
-	started  bool // what it lists was asked for
+	id      string
+	src     music.Source
+	caps    map[string]bool // what it can do
+	started bool            // what it lists was asked for
 
-	account     *music.Account
-	accountBusy bool // it's being asked who's signed in
+	account      *music.Account
+	accountBusy  bool // it's being asked who's signed in
+	accountAsked bool // it has said who's signed in, or failed to
 	// needsSignIn and needsSetup say the source answered ErrSignIn or
 	// ErrSetup, and asked says the listener was already taken there once.
 	needsSignIn, needsSetup bool
@@ -104,7 +102,7 @@ type library struct {
 }
 
 func newLibrary(src music.Source) *library {
-	lib := &library{id: src.Info().ID, src: src, caps: map[string]bool{}}
+	lib := &library{id: src.Info().ID, src: src, caps: probeCaps(src)}
 	lib.forget()
 	return lib
 }
@@ -126,12 +124,17 @@ func (l *library) forget() {
 	l.stations, l.stationsOnce = nil, false
 }
 
-// can reports whether the source does what's named. A source not asked yet
-// does nothing.
+// can reports whether the source does what's named.
 func (l *library) can(what string) bool { return l != nil && l.caps[what] }
 
-// signedOut reports whether the source wants a listener and has none.
-func (l *library) signedOut() bool { return l.can("signIn") && l.account == nil }
+// accountUnknown reports whether the source is yet to say who's signed in.
+func (l *library) accountUnknown() bool { return l.can("account") && !l.accountAsked }
+
+// signedOut reports whether the source wants a listener and has none, which it
+// isn't known to until it said so.
+func (l *library) signedOut() bool {
+	return l.can("signIn") && l.account == nil && !l.accountUnknown()
+}
 
 // name is what the listener knows the source as.
 func (l *library) name() string {
@@ -160,57 +163,21 @@ func (a *app) trackLib(tr *music.Track) *library {
 	return a.library
 }
 
-// boot finds out what the active source can do, then loads its pages, and picks
-// up playback where it was left. The others are asked once they're needed: a
-// plugin runs from when it's first asked.
+// boot loads the active source's pages, and picks up playback where it was left.
+// The others are asked once they're needed: a plugin runs from when it's first
+// asked.
 func (a *app) boot() {
 	a.keepCheckingPlugins()
-	a.learn(a.library)
+	a.startLibrary(a.library)
 	a.restoreSession()
-	if tr := a.pl.Current(); tr != nil {
-		a.learn(a.trackLib(tr))
-	}
 	if a.local != nil {
 		a.local.Rescan()
 	}
 }
 
-// learn asks a source what it can do, off the main thread, and starts it if
-// it's the active one.
-func (a *app) learn(lib *library) {
-	if len(lib.caps) > 0 {
-		if lib == a.library {
-			a.startLibrary(lib)
-		}
-		return
-	}
-	if lib.learning {
-		return
-	}
-	lib.learning = true
-	go func() {
-		caps := probeCaps(lib.src)
-		problem := ""
-		if len(caps) == 0 {
-			// Asking it something says why it can't answer.
-			if _, err := lib.src.Account(); err != nil && !errors.Is(err, music.ErrUnsupported) {
-				problem = err.Error()
-			}
-		}
-		a.post(func() {
-			lib.learning = false
-			lib.caps, lib.startErr = caps, problem
-			if lib == a.library {
-				a.startLibrary(lib)
-				a.load(a.route)
-			}
-		})
-	}()
-}
-
 // startLibrary loads what the sidebar and Home show of a source, once.
 func (a *app) startLibrary(lib *library) {
-	if lib.started || len(lib.caps) == 0 {
+	if lib.started {
 		return
 	}
 	lib.started = true
@@ -229,10 +196,6 @@ func (a *app) activate(lib *library) {
 	a.settings.save()
 	a.dismissSuggestions()
 	a.accountOpen = false
-	if len(lib.caps) == 0 {
-		a.learn(lib)
-		return
-	}
 	a.startLibrary(lib)
 }
 

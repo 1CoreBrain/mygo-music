@@ -119,7 +119,6 @@ func (a *app) pluginInstalled(id string) {
 		a.allLibs = append(a.allLibs, lib)
 		a.plugins = append(a.plugins, p)
 		a.enabledChanged()
-		a.learn(lib)
 		a.redraw()
 		return
 	}
@@ -134,9 +133,8 @@ func (a *app) pluginInstalled(id string) {
 	a.enabledChanged()
 	if a.library == old {
 		a.library = lib
-	}
-	if a.pluginEnabled(lib) {
-		a.learn(lib)
+		a.startLibrary(lib)
+		a.load(a.route)
 	}
 	a.redraw()
 }

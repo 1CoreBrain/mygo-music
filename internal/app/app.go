@@ -208,7 +208,6 @@ func userDataDir(sub string) string {
 func (a *app) makeSources() {
 	a.local = local.New(userDataDir("local"))
 	builtIn := newLibrary(a.local)
-	builtIn.caps = probeCaps(a.local)
 	a.allLibs = []*library{builtIn}
 	plugin.SetOpenURL(mygo.Shell.OpenExternal)
 	a.plugins = plugin.Discover(pluginsDir(), userDataDir("plugin-data"))
@@ -256,10 +255,7 @@ func (a *app) setPluginEnabled(lib *library, on bool) {
 	}
 	a.settings.DisabledPlugins = disabled
 	a.enabledChanged()
-	if on {
-		// One off since launch hasn't said what it can do yet.
-		a.learn(lib)
-	} else {
+	if !on {
 		if a.library == lib {
 			a.switchSource(a.libs[0].id)
 		}

@@ -227,6 +227,36 @@ func TestHomeFallsBackToRecentAndPlaylists(t *testing.T) {
 	}
 }
 
+// A source's own Home, slower than its playlists, has them show nowhere on it
+// meanwhile: they showed as the fallback Home, which its sections then took the
+// place of, moving everything at each launch.
+func TestHomeWaitsForTheSourcesOwn(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	without(a, "isLiked")
+	answer := make(chan struct{})
+	fake(a).home = func() (*music.Browse, error) {
+		<-answer
+		return &music.Browse{Sections: []music.Section{{Title: "推荐歌单", Playlists: []music.Playlist{{ID: "20", Name: "夜跑"}}}}}, nil
+	}
+	fake(a).playlists = func() ([]music.Playlist, error) { return []music.Playlist{{ID: "10", Name: "通勤", Mine: true}}, nil }
+	a.mineCollapsed = true // for the sidebar not to list it either
+	a.loadHome(a.library)
+	a.loadMine(a.library)
+	until(t, ch, func() bool { return len(a.mine) > 0 })
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if tt.HasText("通勤") {
+		t.Error("the playlists show while Home loads")
+	}
+	close(answer)
+	until(t, ch, func() bool { return a.home != nil })
+	tt.Frame()
+	if !tt.HasText("夜跑") || tt.HasText("通勤") {
+		t.Error("Home isn't the source's own")
+	}
+}
+
 // A source's Home that has no sections falls back as one that has no Home does.
 func TestHomeWithoutSectionsFallsBack(t *testing.T) {
 	a := newTestApp()
