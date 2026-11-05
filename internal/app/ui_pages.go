@@ -495,7 +495,7 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 		ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
 	})
 	if row.Clicked() && !tr.Unavailable {
-		a.pl.PlayQueue(tracks, i)
+		a.pl.PlayTrack(tracks, i)
 	}
 }
 

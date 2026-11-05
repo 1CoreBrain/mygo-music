@@ -115,7 +115,7 @@ func (p *Player) remoteFailed(src music.Source, err error) {
 
 // loadRemote tells src to play the track at order[at], if play, or else just
 // keeps it, to tell once asked: a session picked up shouldn't start anything.
-func (p *Player) loadRemote(gen int, src music.Source, at, skipped int, play bool, from time.Duration) {
+func (p *Player) loadRemote(gen int, src music.Source, at, skipped, dir int, play bool, from time.Duration) {
 	r := &remote{src: src}
 	p.remote = r
 	if !play {
@@ -133,7 +133,7 @@ func (p *Player) loadRemote(gen int, src music.Source, at, skipped int, play boo
 			p.loading = false
 			if err != nil {
 				p.remote = nil
-				p.loadFailed(src.Info().ID, err, at, skipped)
+				p.loadFailed(src.Info().ID, err, at, skipped, dir)
 				return
 			}
 			r.started, r.running = true, true

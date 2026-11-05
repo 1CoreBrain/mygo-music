@@ -226,3 +226,81 @@ func TestEndRadio(t *testing.T) {
 		t.Error("asked the radio after leaving it")
 	}
 }
+
+// picky plays the songs in ok, from one on disk, and says the rest aren't
+// available.
+type picky struct {
+	nothing
+	ok map[string]bool
+}
+
+func (s picky) Stream(id, _ string) (*music.Stream, error) {
+	if !s.ok[id] {
+		return nil, music.ErrUnavailable
+	}
+	path, err := filepath.Abs("testdata/seek.mp3")
+	return &music.Stream{URL: "file://" + filepath.ToSlash(path), Type: "mp3"}, err
+}
+
+// pickyQueue is a, b and c, of which b can't play.
+func pickyQueue() (*Player, chan func(), []music.Track) {
+	ch := make(chan func(), 64)
+	p := New(func(fn func()) { ch <- fn })
+	p.SetVolume(0)
+	src := picky{ok: map[string]bool{"a": true, "c": true}}
+	p.Source = func(string) music.Source { return src }
+	return p, ch, []music.Track{{ID: "a", Source: "s"}, {ID: "b", Source: "s"}, {ID: "c", Source: "s"}}
+}
+
+// settle runs what the player posts until it loaded what it went on to.
+func settle(t *testing.T, ch chan func(), p *Player) {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	for p.Loading() {
+		select {
+		case fn := <-ch:
+			fn()
+		case <-deadline:
+			t.Fatal("still loading")
+		}
+	}
+}
+
+// A song the listener picks that can't play stays, saying why. Clicking one
+// the source refused for a moment used to play the one after it instead.
+func TestPickedTrackStays(t *testing.T) {
+	p, ch, q := pickyQueue()
+	defer p.stop()
+	p.PlayTrack(q, 1)
+	settle(t, ch, p)
+	if p.Current().ID != "b" || p.Playing() || p.Err() == "" {
+		t.Fatalf("on %s, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
+	}
+	p.Jump(0)
+	settle(t, ch, p)
+	p.Jump(1)
+	settle(t, ch, p)
+	if p.Current().ID != "b" || p.Playing() {
+		t.Errorf("jumped to %s, playing %v", p.Current().ID, p.Playing())
+	}
+}
+
+// Previous passes a song that can't play going back, as Next does going
+// forward. It used to skip forward, back onto the song playing, so Previous
+// seemed to do nothing.
+func TestPrevSkipsBack(t *testing.T) {
+	p, ch, q := pickyQueue()
+	defer p.stop()
+	p.PlayTrack(q, 2)
+	settle(t, ch, p)
+	p.Prev()
+	settle(t, ch, p)
+	if p.Current().ID != "a" || !p.Playing() {
+		t.Fatalf("previous went to %s, playing %v", p.Current().ID, p.Playing())
+	}
+	p.Next()
+	settle(t, ch, p)
+	if p.Current().ID != "c" || !p.Playing() {
+		t.Errorf("next went to %s, playing %v", p.Current().ID, p.Playing())
+	}
+}

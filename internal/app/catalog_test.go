@@ -243,7 +243,7 @@ func TestEpisodeOpensShow(t *testing.T) {
 	a := catalogApp()
 	a.open(route{page: pageShow, id: "5"})
 	d := a.shows["5"]
-	a.playEpisodes(d, 0)
+	a.playEpisodes(d)
 	a.pl.SetLyrics(nil)
 	a.nowPlaying, a.npPane = true, paneShow
 	tt := ui.NewTester(a.view, 1200, 800)

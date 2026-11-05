@@ -57,10 +57,10 @@ func (a *app) loadEpisodes(lib *library, id string) {
 	}()
 }
 
-// playEpisodes plays the episodes loaded, from the one at i.
-func (a *app) playEpisodes(d *showData, i int) {
+// playEpisodes plays the episodes loaded, from the first that can play.
+func (a *app) playEpisodes(d *showData) {
 	if len(d.episodes) > 0 {
-		a.pl.PlayQueue(d.episodes, i)
+		a.pl.PlayQueue(d.episodes, 0)
 	}
 }
 
@@ -77,7 +77,7 @@ func (a *app) playShow(lib *library, id string) {
 func (a *app) playLoaded(d *showData) {
 	if d.thenPlay && d.show != nil && d.page.loaded {
 		d.thenPlay = false
-		a.playEpisodes(d, 0)
+		a.playEpisodes(d)
 	}
 }
 
@@ -156,7 +156,7 @@ func (a *app) showPage(c *ui.Context) {
 				}
 				ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
 					if pillButton(c.Key("play"), iconPlay, T("Play"), p.accent, p.onAccent).Clicked() {
-						a.playEpisodes(d, 0)
+						a.playEpisodes(d)
 					}
 					if a.can("subscribeShow") {
 						icon, label := iconPlus, T("Subscribe")
@@ -230,7 +230,7 @@ func (a *app) episodeRow(c *ui.Context, d *showData, i int, cur *music.Track) {
 		ui.Text(c, clock(time.Duration(tr.Duration)*time.Millisecond)).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
 	})
 	if row.Clicked() {
-		a.playEpisodes(d, i)
+		a.pl.PlayTrack(d.episodes, i)
 	}
 }
 

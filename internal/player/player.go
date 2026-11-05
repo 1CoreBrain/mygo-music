@@ -176,8 +176,20 @@ func (p *Player) ended() {
 	p.Next()
 }
 
-// PlayQueue replaces the queue with tracks and plays the one at start.
+// PlayQueue replaces the queue with tracks and plays the one at start, or the
+// first after it that can play.
 func (p *Player) PlayQueue(tracks []music.Track, start int) {
+	p.playQueue(tracks, start, forward)
+}
+
+// PlayTrack replaces the queue with tracks and plays the one at i, the
+// listener's pick: one that can't play stays, saying why, rather than another
+// playing in its place.
+func (p *Player) PlayTrack(tracks []music.Track, i int) {
+	p.playQueue(tracks, i, stay)
+}
+
+func (p *Player) playQueue(tracks []music.Track, start, dir int) {
 	if len(tracks) == 0 {
 		return
 	}
@@ -190,10 +202,9 @@ func (p *Player) PlayQueue(tracks []music.Track, start int) {
 	}
 	if p.shuffle {
 		p.shuffleOrder(start)
-		p.load(0)
-		return
+		start = 0
 	}
-	p.load(start)
+	p.loadSkipping(start, 0, dir, true, 0)
 }
 
 // PlayRadio plays tracks in their order, then goes on with those feed
@@ -397,14 +408,16 @@ func (p *Player) Prev() {
 	if at < 0 {
 		at = len(p.order) - 1
 	}
-	p.load(at)
+	// One that can't play is passed going back, as going forward.
+	p.loadSkipping(at, 0, back, true, 0)
 }
 
-// Jump plays the queue's track i.
+// Jump plays the queue's track i, the listener's pick: one that can't play
+// stays, saying why.
 func (p *Player) Jump(i int) {
 	for k, v := range p.order {
 		if v == i {
-			p.load(k)
+			p.loadSkipping(k, 0, stay, true, 0)
 			return
 		}
 	}
@@ -423,7 +436,8 @@ func (p *Player) TogglePlay() {
 			p.playing = !p.playing
 			p.sync()
 		case len(p.order) > 0:
-			p.loadSkipping(max(p.at, 0), 0, true, p.pending)
+			// Again, as for a track that couldn't play.
+			p.loadSkipping(max(p.at, 0), 0, stay, true, p.pending)
 		}
 		return
 	}
@@ -579,9 +593,17 @@ func (p *Player) stop() {
 	p.fade.attach(nil, 1)
 }
 
+// Which way a load goes past a track that can't play: on to the next, back to
+// the one before, or nowhere, staying on it to say why.
+const (
+	forward = 1
+	back    = -1
+	stay    = 0
+)
+
 // load plays the track at order[at], skipping those that cannot play.
 func (p *Player) load(at int) {
-	p.loadSkipping(at, 0, true, 0)
+	p.loadSkipping(at, 0, forward, true, 0)
 }
 
 // stopForFeed stops what plays, at the end of a radio's queue, while its feed
@@ -618,8 +640,8 @@ func (p *Player) record() {
 }
 
 // loadSkipping loads the track at order[at], to play or not, from from,
-// skipping those that cannot play: skipped of them so far.
-func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
+// skipping those that cannot play the way dir goes: skipped of them so far.
+func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duration) {
 	t := p.queue[p.order[at]]
 	src := p.sourceOf(&t)
 	if was := p.remote; was != nil && was.started && p.playing && (src == nil || src.Info().ID != was.src.Info().ID) {
@@ -642,7 +664,7 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 	p.loadCover(gen, &t)
 	p.loadLyrics(gen, src, t)
 	if src != nil && src.Info().Playback == music.PlaybackRemote {
-		p.loadRemote(gen, src, at, skipped, play, from)
+		p.loadRemote(gen, src, at, skipped, dir, play, from)
 		return
 	}
 	go func() {
@@ -660,7 +682,7 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 			}
 			p.loading = false
 			if err != nil {
-				p.loadFailed(t.Source, err, at, skipped)
+				p.loadFailed(t.Source, err, at, skipped, dir)
 				return
 			}
 			p.stream, p.info = s, info
@@ -730,10 +752,10 @@ func (p *Player) loadLyrics(gen int, src music.Source, t music.Track) {
 	}()
 }
 
-// loadFailed says why the track at order[at] can't play, and skips it, unless
-// nothing in the queue can play, or the listener has to do something first,
-// which would stop the next track too.
-func (p *Player) loadFailed(source string, err error, at, skipped int) {
+// loadFailed says why the track at order[at] can't play, and skips it the way
+// dir goes, unless it stays, nothing in the queue can play, or the listener has
+// to do something first, which would stop the next track too.
+func (p *Player) loadFailed(source string, err error, at, skipped, dir int) {
 	p.err = errorText(err)
 	if errors.Is(err, music.ErrSignIn) || errors.Is(err, music.ErrSetup) {
 		p.playing = false
@@ -743,12 +765,9 @@ func (p *Player) loadFailed(source string, err error, at, skipped int) {
 		p.sync()
 		return
 	}
-	if skipped+1 < len(p.order) {
-		next := at + 1
-		if next >= len(p.order) {
-			next = 0
-		}
-		p.loadSkipping(next, skipped+1, p.playing, 0)
+	if dir != stay && skipped+1 < len(p.order) {
+		next := (at + dir + len(p.order)) % len(p.order)
+		p.loadSkipping(next, skipped+1, dir, p.playing, 0)
 		return
 	}
 	p.playing = false
@@ -864,7 +883,7 @@ func (p *Player) Restore(s Session) {
 	}
 	p.queue, p.order = s.Queue, s.Order
 	p.shuffle, p.repeat = s.Shuffle, s.Repeat%3
-	p.loadSkipping(s.At, 0, false, time.Duration(s.Position)*time.Millisecond)
+	p.loadSkipping(s.At, 0, stay, false, time.Duration(s.Position)*time.Millisecond)
 }
 
 // Audio is the current track's sound, opened apart from what plays by OpenAudio:
