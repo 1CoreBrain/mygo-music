@@ -2,6 +2,17 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.17] - 2026-11-07
+
+### Added
+
+- Plugins can head the page of a feature card's songs, such as a daily mix, with their own title and subtitle, and the page is headed as the card is.
+- Plugins can mark a playlist of yours as fixed, such as NetEase's liked songs. It stays under My Playlists but can't be renamed, deleted or changed.
+
+### Fixed
+
+- Playlists and Liked Songs changed in the service's own apps or website now show those changes, without restarting the app.
+
 ## [0.1.16] - 2026-11-07
 
 ### Fixed
@@ -145,6 +156,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.17]: https://github.com/egoist/mygo-music/compare/v0.1.16...v0.1.17
 [0.1.16]: https://github.com/egoist/mygo-music/compare/v0.1.15...v0.1.16
 [0.1.15]: https://github.com/egoist/mygo-music/compare/v0.1.14...v0.1.15
 [0.1.14]: https://github.com/egoist/mygo-music/compare/v0.1.13...v0.1.14
