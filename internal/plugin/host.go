@@ -357,6 +357,7 @@ func (p *Plugin) spawn(v *vm) native {
 		}
 		cmd := exec.Command(command, cmdArgs...)
 		cmd.Dir = p.dir
+		hideConsole(cmd)
 		stderr := &tailWriter{to: logWriter{p.manifest.ID}}
 		cmd.Stderr = stderr
 		stdin, err := cmd.StdinPipe()
