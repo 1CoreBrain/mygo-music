@@ -2,7 +2,7 @@
   "name": "MyGo Music",
   "identifier": "dev.egoist.music",
   "slug": "mygo-music",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "out": "build",
   "updates": {
     "publicKey": "WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=",
