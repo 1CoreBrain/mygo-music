@@ -2,6 +2,13 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.14] - 2026-11-07
+
+### Added
+
+- Plugins can give you a page of your own, such as your profile, which opens from My Page in the account menu.
+- Plugin pages can be headed with a round picture and a description, as an artist's page is, and their sections can say when they're empty.
+
 ## [0.1.13] - 2026-11-07
 
 ### Fixed
@@ -126,6 +133,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.14]: https://github.com/egoist/mygo-music/compare/v0.1.13...v0.1.14
 [0.1.13]: https://github.com/egoist/mygo-music/compare/v0.1.12...v0.1.13
 [0.1.12]: https://github.com/egoist/mygo-music/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/egoist/mygo-music/compare/v0.1.10...v0.1.11
