@@ -55,6 +55,19 @@ func keepable(quality, ext string) bool {
 // lookup returns a song kept at quality or a better one, open to read, with
 // its stream.
 func (c *Cache) lookup(source, id, quality string) (*download, *music.Stream, bool) {
+	f, st, ok := c.find(source, id, quality)
+	if !ok {
+		return nil, nil, false
+	}
+	// Played now: the last to go.
+	now := time.Now()
+	os.Chtimes(f.Name(), now, now)
+	return opened(f, st.Size), st, true
+}
+
+// find opens a song kept at quality or a better one, all of it there, with its
+// stream.
+func (c *Cache) find(source, id, quality string) (*os.File, *music.Stream, bool) {
 	if c == nil {
 		return nil, nil, false
 	}
@@ -69,8 +82,7 @@ func (c *Cache) lookup(source, id, quality string) (*download, *music.Stream, bo
 		if json.Unmarshal(meta, &st) != nil || !keepable(q, st.Type) {
 			continue
 		}
-		path := filepath.Join(c.dir, key+"."+st.Type)
-		f, err := os.Open(path)
+		f, err := os.Open(filepath.Join(c.dir, key+"."+st.Type))
 		if err != nil {
 			continue
 		}
@@ -78,10 +90,7 @@ func (c *Cache) lookup(source, id, quality string) (*download, *music.Stream, bo
 			f.Close()
 			continue
 		}
-		// Played now: the last to go.
-		now := time.Now()
-		os.Chtimes(path, now, now)
-		return opened(f, st.Size), &st, true
+		return f, &st, true
 	}
 	return nil, nil, false
 }

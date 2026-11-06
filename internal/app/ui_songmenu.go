@@ -20,9 +20,9 @@ func (a *app) songMenu(c *ui.Context, tr *music.Track, size float32, color ui.Co
 
 // songItems builds the menu of what can be done with tr, behind its dots
 // or a right click on its row: copying its title, its title with its
-// artists, or the link to its page, opening its artists', album's or show's,
-// and adding it to a playlist or taking it out of pid, the playlist it is
-// listed in, if set; as far as its source can.
+// artists, or the link to its page, downloading it, opening its artists',
+// album's or show's, and adding it to a playlist or taking it out of pid, the
+// playlist it is listed in, if set; as far as its source can.
 func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		lib := a.trackLib(tr)
@@ -36,6 +36,12 @@ func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 			m.Separator()
 			if m.Item(T("Copy Link")).Chosen() {
 				copyText(tr.URL)
+			}
+		}
+		if a.canDownload(tr) {
+			m.Separator()
+			if m.Item(T("Download…")).Chosen() {
+				a.download(*tr)
 			}
 		}
 		// Its artists', album's and show's pages, those the source has.
