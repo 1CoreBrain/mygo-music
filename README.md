@@ -70,7 +70,7 @@ Export a function for each thing the plugin does. Each takes one object of param
 
 | Export | Parameters | Returns |
 | --- | --- | --- |
-| `signIn`, `signOut`, `account` | | `{id, name, imageUrl}`; `account` returns `null` when signed out |
+| `signIn`, `signOut`, `account` | | `{id, name, imageUrl, page}`; `account` returns `null` when signed out. `page` is a `browse` page of the listener's own, which the account menu opens as My Page |
 | `setSetting` | `{key, value}` | |
 | `home` | | `Browse` |
 | `browse` | `{page}` | `Browse` |
@@ -109,7 +109,7 @@ Export a function for each thing the plugin does. Each takes one object of param
 | `remoteDevices` | | `[{id, name, active}]` |
 | `remoteUse` | `{deviceId}` | |
 
-The shapes are in [`internal/music/music.go`](internal/music/music.go) by their JSON names. Times are in milliseconds. A `Browse` is `{title, subtitle, sections}`, and a section can hold `tracks`, `albums`, `artists`, `playlists`, `shows`, `stations`, `links` (`{title, subtitle, imageUrl, page}`) and a `morePage`.
+The shapes are in [`internal/music/music.go`](internal/music/music.go) by their JSON names. Times are in milliseconds. A `Browse` is `{title, subtitle, imageUrl, description, sections}`: with an `imageUrl`, such as a listener's avatar, it's headed round, as an artist's page is, and `description` goes under the title a line to each line. A section can hold `tracks`, `albums`, `artists`, `playlists`, `shows`, `stations`, `links` (`{title, subtitle, imageUrl, page}`), a `morePage`, and `empty`, what it says while it holds nothing.
 
 `navigation` is the plugin's sidebar, in its order. An entry opens a `browse` page of its own by `page`, or one of the app's by `builtin`: `home`, `liked`, `savedAlbums`, `stations` or `shows`, which can be given a `title`. Without `navigation`, the sidebar has an entry for each of the app's pages the plugin can do. Up to four stations show as a switch over one card, and more as a grid.
 

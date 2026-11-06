@@ -91,6 +91,9 @@ type Account struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	ImageURL string `json:"imageUrl,omitempty"`
+	// Page is the Browse page of the listener's own, such as their profile,
+	// which the account menu opens as My Page.
+	Page string `json:"page,omitempty"`
 }
 
 // SearchKind is what a search looks for.
@@ -179,9 +182,14 @@ type CommentPage struct {
 // Browse is a page a source makes up itself, of sections it chooses: what its
 // Home shows, and any other opened from a Link, a MorePage or its Navigation.
 type Browse struct {
-	Title    string    `json:"title,omitempty"`
-	Subtitle string    `json:"subtitle,omitempty"`
-	Sections []Section `json:"sections,omitempty"`
+	Title    string `json:"title,omitempty"`
+	Subtitle string `json:"subtitle,omitempty"`
+	// ImageURL is a picture of whom the page is about, such as a listener's
+	// avatar, which heads it round, as an artist's photo heads theirs.
+	ImageURL string `json:"imageUrl,omitempty"`
+	// Description goes under the title, a line to each line of it.
+	Description string    `json:"description,omitempty"`
+	Sections    []Section `json:"sections,omitempty"`
 }
 
 // Section is a heading over what it lists. A section may hold several kinds,
@@ -197,6 +205,9 @@ type Section struct {
 	Links     []Link     `json:"links,omitempty"`
 	// MorePage is the Browse page with the rest of it, if there is one.
 	MorePage string `json:"morePage,omitempty"`
+	// Empty is what the section says while it holds nothing, such as "No
+	// public playlists". Without it, an empty section shows only its title.
+	Empty string `json:"empty,omitempty"`
 }
 
 // Link opens another Browse page.

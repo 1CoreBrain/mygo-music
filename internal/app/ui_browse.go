@@ -2,6 +2,7 @@ package app
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
@@ -60,10 +61,57 @@ func (a *app) browsePage(c *ui.Context) {
 		a.trackSkeleton(c, a.pageShimmer(c), true, func(c *ui.Context) {})
 		return
 	}
-	a.browseRows(c, d.page, id, func(c *ui.Context) {
-		if d.page.Title != "" {
-			a.heading(c, d.page.Title, d.page.Subtitle)
+	a.browseRows(c, d.page, id, func(c *ui.Context) { a.browseHeader(c, d.page) })
+}
+
+// browseHeader heads a page the source made up: its title, and what it says
+// of it, a line to each line. With a picture, it's of someone, and headed as
+// an artist's page is.
+func (a *app) browseHeader(c *ui.Context, page *music.Browse) {
+	p := a.pal
+	var lines []string
+	for line := range strings.SplitSeq(page.Description, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			lines = append(lines, line)
 		}
+	}
+	about := func() {
+		for i, line := range lines {
+			t := ui.Text(c.Key(i), line).FontSize(13).TextColor(p.muted).MaxLines(2).LineHeight(1.45)
+			if i == 0 {
+				t.Margin(2, 0, 0, 0)
+			}
+		}
+	}
+	if page.ImageURL == "" {
+		if len(lines) == 0 {
+			if page.Title != "" {
+				a.heading(c, page.Title, page.Subtitle)
+			}
+			return
+		}
+		ui.Column(c).Gap(4).Margin(0, 0, 18, 0).Children(func() {
+			if page.Subtitle != "" {
+				ui.Text(c, page.Subtitle).FontSize(12).FontWeight(600).TextColor(p.muted).LetterSpacing(0.4)
+			}
+			ui.Text(c, page.Title).FontSize(30).FontWeight(700).LetterSpacing(-0.6)
+			about()
+		})
+		return
+	}
+	// As far below as an artist's sections are, as its first title keeps
+	// none of its own.
+	ui.Row(c).Gap(28).AlignItems(ui.End).Margin(0, 0, 34, 0).Children(func() {
+		ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
+			a.coverFill(c, page.ImageURL, 600, artistPhotoSize/2)
+		})
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
+			if page.Subtitle != "" {
+				ui.Text(c, page.Subtitle).FontSize(12).FontWeight(600).TextColor(p.accent)
+			}
+			ui.Text(c, page.Title).FontSize(30).FontWeight(800).LetterSpacing(-0.6).MaxLines(2).LineHeight(1.2)
+			about()
+		})
 	})
 }
 
@@ -87,6 +135,7 @@ const (
 	rowShows
 	rowStations
 	rowLinks
+	rowEmpty
 )
 
 // browseLayout lays out page in rows. The first section of Home, if tracks, is
@@ -119,6 +168,9 @@ func browseLayout(page *music.Browse, pageID string, cols int) []browseRow {
 		cards(rowShows, s, len(sec.Shows))
 		cards(rowStations, s, len(sec.Stations))
 		cards(rowLinks, s, len(sec.Links))
+		if sec.Empty != "" && len(sec.Tracks)+len(sec.Albums)+len(sec.Artists)+len(sec.Playlists)+len(sec.Shows)+len(sec.Stations)+len(sec.Links) == 0 {
+			rows = append(rows, browseRow{rowEmpty, s, 0, 0})
+		}
 	}
 	return rows
 }
@@ -157,6 +209,8 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 			a.browseTitle(c, sec, r.section == 0)
 		case rowTrack:
 			a.trackRow(c, sec.Tracks, r.from, true, "")
+		case rowEmpty:
+			ui.Column(c).Margin(0, 12, cardRowGap, 12).Children(func() { a.empty(c, sec.Empty) })
 		default:
 			a.cardRow(c, sec, r, cols)
 		}

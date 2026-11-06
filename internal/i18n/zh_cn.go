@@ -168,6 +168,7 @@ var zhCN = map[string]string{
 	"Move the pointer to the top center to pause or skip": "指针移到顶部中央，即可暂停、切歌",
 	"Music without end":           "无尽音乐",
 	"Mute":                        "静音",
+	"My Page":                     "我的主页",
 	"My Playlists":                "我的歌单",
 	"New Playlist":                "新建歌单",
 	"New Playlist…":               "新建歌单…",
