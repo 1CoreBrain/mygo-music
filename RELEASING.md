@@ -34,6 +34,14 @@ Releases are built by [`.github/workflows/release.yml`](.github/workflows/releas
 
    Installed apps only pick up the update once it's published.
 
+7. Deploy the website. Its download pages read the latest release when it's built, so they show the old version until it's deployed again:
+
+   ```bash
+   bun run deploy
+   ```
+
+   This runs `vite build && wrangler deploy` in `website/`, and needs Wrangler signed in to the Cloudflare account (`bunx wrangler login`).
+
 ## Secrets
 
 The workflow needs these repository secrets:
