@@ -67,6 +67,24 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+          cache: false
+      # setup-go's own cache is keyed on the runner and go.sum alone, so the
+      # Windows and Linux jobs, both on Ubuntu, race for one key and only
+      # one of them keeps its build cache, and any change to go.sum, like
+      # bumping mygo, starts every job cold. This one is per job, and falls
+      # back to the job's last cache when go.mod or go.sum changes.
+      - name: Find Go's caches
+        id: go-env
+        run: |
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.go-env.outputs.build }}
+            ${{ steps.go-env.outputs.mod }}
+          key: go-${{ matrix.name }}-${{ hashFiles('go.mod', 'go.sum') }}
+          restore-keys: go-${{ matrix.name }}-
       - name: Install NSIS, for the Windows installers
         if: matrix.name == 'Windows'
         run: sudo apt-get update && sudo apt-get install -y nsis
