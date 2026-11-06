@@ -200,3 +200,86 @@ func TestNowPlayingTabsStayPut(t *testing.T) {
 		}
 	}
 }
+
+// pullNowPlaying opens Now Playing on the queue and pulls it down from the
+// gap between the cover and the queue, by dy over steps moves 16 ms apart,
+// and lets go after rest: the pointer still for that long, it throws
+// nothing.
+func pullNowPlaying(t *testing.T, dy float32, steps int, rest time.Duration) (*app, *ui.Tester) {
+	t.Helper()
+	a := newTestApp()
+	a.pl.Cue([]music.Track{song("1", "宝船", "DOUDOU")})
+	a.pl.SetLyrics(nil)
+	a.nowPlaying, a.npPane = true, paneQueue
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Advance(time.Second)
+	x, y := float32(450), float32(300)
+	tt.Press(x, y)
+	tt.Frame()
+	for i := 1; i <= steps; i++ {
+		tt.Advance(16 * time.Millisecond)
+		tt.Move(x, y+dy*float32(i)/float32(steps))
+		tt.Frame()
+	}
+	tt.Advance(rest)
+	tt.Release(x, y+dy)
+	tt.Frame()
+	tt.Advance(time.Second)
+	return a, tt
+}
+
+// Pulled down far and let go, Now Playing closes.
+func TestPullNowPlayingDownCloses(t *testing.T) {
+	a, tt := pullNowPlaying(t, 320, 12, 300*time.Millisecond)
+	if a.nowPlaying || tt.HasText("Up Next") {
+		t.Error("still open after a long pull")
+	}
+}
+
+// A short, slow pull springs back, Now Playing still open and at rest.
+func TestShortPullSpringsBack(t *testing.T) {
+	a, tt := pullNowPlaying(t, 60, 6, 300*time.Millisecond)
+	if !a.nowPlaying || !tt.HasText("Up Next") {
+		t.Fatal("closed after a short pull")
+	}
+	if a.npShift != 0 || a.npPull != 0 {
+		t.Errorf("not back in place: shift %v, pull %v", a.npShift, a.npPull)
+	}
+}
+
+// A flick down closes Now Playing, though it went only a little way.
+func TestFlickNowPlayingDownCloses(t *testing.T) {
+	a, _ := pullNowPlaying(t, 80, 3, 0)
+	if a.nowPlaying {
+		t.Error("still open after a flick")
+	}
+}
+
+// The bar's cover shows in every frame as Now Playing shrinks back into
+// it: in the frame its cover got there, Now Playing was gone and the bar
+// still hid its own, which blinked.
+func TestClosingCoverLandsWithoutABlink(t *testing.T) {
+	a := newTestApp()
+	a.pl.Cue(framesTracks(a))
+	a.pl.SetLyrics(nil)
+	a.nowPlaying, a.npPane = true, paneQueue
+	tt := ui.NewTester(a.view, 1180, 780)
+	tt.Advance(time.Second)
+	a.nowPlaying = false
+	tt.Frame()
+	// A millisecond at a time, to look at every frame.
+	for i := range 1500 {
+		tt.Advance(time.Millisecond)
+		if a.npT > 0.05 {
+			continue // not near the bar yet
+		}
+		img := tt.Image()
+		sc := float32(img.Bounds().Dx()) / 1180
+		at := a.npFromRect(1180, 780)
+		// The cover is colored, where the bar is gray, light or dark.
+		r, g, b, _ := img.At(int((at.X+at.W/2)*sc), int((at.Y+at.H/2)*sc)).RGBA()
+		if max(r, g, b)-min(r, g, b) < 0x2000 {
+			t.Fatalf("at %d ms: no cover where the bar's is", i)
+		}
+	}
+}

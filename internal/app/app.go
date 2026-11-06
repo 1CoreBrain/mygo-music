@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -103,10 +102,15 @@ type app struct {
 	suggestions suggestState // what the search field's query may be after
 
 	nowPlaying  bool
-	npOpen      bool      // Now Playing as it last showed: open or not
-	npChangedAt time.Time // when it last opened or closed
-	npPane      int       // paneLyrics, paneQueue, paneStage, paneComments or paneShow
-	npPaneTop   float32   // how far the cover beside the pane starts below its top
+	npOpen      bool    // Now Playing as it last showed: open or not
+	npT         float32 // how far open Now Playing last showed, 0 to 1
+	npShift     float32 // how far down it last showed, pulled
+	npPull      float32 // how far the pointer has pulled it down
+	npHeld      bool    // whether the pointer presses on it, to pull it
+	npStill     bool    // whether it comes and goes with a fade, for less motion
+	npFrom      ui.Rect // the player bar's cover, which it grows out of
+	npPane      int     // paneLyrics, paneQueue, paneStage, paneComments or paneShow
+	npPaneTop   float32 // how far the cover beside the pane starts below its top
 	lyricScroll ui.ScrollState
 	lyricGlide  lyricGlide
 	lyricAt     int

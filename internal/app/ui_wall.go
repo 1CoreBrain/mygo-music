@@ -124,7 +124,7 @@ func (a *app) wallPane(c *ui.Context, tr *music.Track, art *artwork, accent ui.C
 		})
 	a.wallSong(c, tr, art, top, songH)
 	a.wallBar(c, accent)
-	reveal(npTabsRow(c, w), pointerIn).Children(func() { a.paneTabs(c) })
+	a.npRise(reveal(npTabsRow(c, w), pointerIn), 0).Children(func() { a.paneTabs(c) })
 }
 
 // wallSong is the song playing, over the wall: its cover, which breathes
@@ -137,17 +137,20 @@ func (a *app) wallSong(c *ui.Context, tr *music.Track, art *artwork, top, h floa
 		// Not Now Playing's cover, which the pointer tilts and flings: here
 		// the wall is what the pointer moves.
 		size := h - 48
-		cov := ui.Box(c.Key(coverKey{tr.ID, 0})).Size(size, size).Radius(16).Shadow(0, 24, 50, -12, ui.RGBA(0, 0, 0, 0.55))
+		radius := a.npRadius(c, 16, size)
+		cov := ui.Box(c.Key(coverKey{tr.ID, 0})).Size(size, size).Radius(radius).Shadow(0, 24, 50, -12, ui.RGBA(0, 0, 0, 0.55))
+		// It flies out of the bar's cover as Now Playing opens.
+		a.npMorph(c, cov)
 		scale := float32(1)
 		if !pl.Playing() {
 			scale = 0.92
 		}
-		cov.AnimatePose(ui.Pose{Scale: scale}, ui.Animation{Spring: ui.SpringOptions{Duration: 600 * time.Millisecond, Bounce: 0.25}})
+		a.npBreathe(cov, scale)
 		in := artIn(cov, bitmap(art))
 		if in < 1 {
 			cov.Background(white.Alpha(0.08))
 		}
-		cov.Children(func() { artImage(c, bitmap(art), 16, in) })
+		cov.Children(func() { artImage(c, bitmap(art), radius, in) })
 		ui.Column(c).Width(440).Shrink(1).MinWidth(0).Gap(4).Children(func() {
 			if r := pl.Radio(); r != "" {
 				a.radioChip(c, r)

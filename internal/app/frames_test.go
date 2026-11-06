@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"image"
 	"os"
 	"testing"
 	"time"
@@ -90,6 +91,68 @@ func TestNowPlayingFrame(t *testing.T) {
 	tt.Advance(2 * time.Second)
 	tt.Frame()
 	saveFrame(t, dir, "now-playing.png", tt.Image())
+}
+
+// With MM_FRAMES set, saves Now Playing growing out of the player bar's
+// cover, a frame every 50 ms, and shrinking back into it, in a sheet each.
+func TestNowPlayingMotionFrames(t *testing.T) {
+	dir := framesDir(t)
+	a := newTestApp()
+	a.pl.Cue(framesTracks(a))
+	a.pl.SetLyrics(nil)
+	a.pl.Hold(10 * time.Second)
+	a.npPane = paneQueue
+	tt := ui.NewTester(a.view, 1180, 780)
+	tt.SetDark(true)
+	settled(tt)
+	sheet := func(name string) {
+		var shots []image.Image
+		for range 12 {
+			shots = append(shots, tt.Image())
+			tt.Advance(50 * time.Millisecond)
+		}
+		saveFrame(t, dir, name, contactSheet(shots, 4))
+	}
+	if err := tt.Click("Open Now Playing"); err != nil {
+		t.Fatal(err)
+	}
+	sheet("np-open.png")
+	settled(tt)
+	a.nowPlaying = false
+	tt.Frame()
+	sheet("np-close.png")
+
+	// Pulled down halfway, then let go to fall into the bar.
+	a.nowPlaying = true
+	settled(tt)
+	tt.Press(450, 300)
+	tt.Frame()
+	for i := 1; i <= 10; i++ {
+		tt.Advance(16 * time.Millisecond)
+		tt.Move(450, 300+float32(i)*24)
+		tt.Frame()
+	}
+	saveFrame(t, dir, "np-pulled.png", tt.Image())
+	tt.Release(450, 540)
+	tt.Frame()
+	sheet("np-let-go.png")
+}
+
+// contactSheet lays shots out in rows of cols, each a third of its size.
+func contactSheet(shots []image.Image, cols int) image.Image {
+	b := shots[0].Bounds()
+	cw, ch := b.Dx()/3, b.Dy()/3
+	rows := (len(shots) + cols - 1) / cols
+	out := image.NewRGBA(image.Rect(0, 0, cw*cols, ch*rows))
+	for i, shot := range shots {
+		x0, y0 := (i%cols)*cw, (i/cols)*ch
+		for y := range ch {
+			for x := range cw {
+				out.Set(x0+x, y0+y, shot.At(x*3, y*3))
+			}
+		}
+	}
+	return out
 }
 
 // With MM_FRAMES set, saves the settings as they list the sources: the local

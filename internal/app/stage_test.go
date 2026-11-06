@@ -17,7 +17,8 @@ func TestStageStyleMenu(t *testing.T) {
 	a, tt, _ := playingApp()
 	a.nowPlaying, a.npPane = true, paneStage
 	a.pl.Seek(2 * time.Second)
-	tt.Frame()
+	tt.Move(600, 400)       // the pointer in the window shows the bar the menu is in
+	tt.Advance(time.Second) // Now Playing slides into place
 	for _, c := range []struct{ item, want string }{{"Steps", "partita"}, {"Tilt", "tilt"}, {"Flow", ""}} {
 		if err := tt.Click("Stage Style"); err != nil {
 			t.Fatal(err)
@@ -38,7 +39,8 @@ func TestStageSparksMenu(t *testing.T) {
 	a, tt, _ := playingApp()
 	a.nowPlaying, a.npPane = true, paneStage
 	a.settings.StageStyle = "tilt"
-	tt.Frame()
+	tt.Move(600, 400)       // the pointer in the window shows the bar the menu is in
+	tt.Advance(time.Second) // Now Playing slides into place
 	for _, want := range []bool{true, false} {
 		if err := tt.Click("Stage Style"); err != nil {
 			t.Fatal(err)
