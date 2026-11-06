@@ -2,6 +2,12 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.16] - 2026-11-07
+
+### Fixed
+
+- On macOS, the app no longer takes more and more memory while something on screen moves, such as the lyrics in Now Playing.
+
 ## [0.1.15] - 2026-11-07
 
 ### Added
@@ -139,6 +145,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.16]: https://github.com/egoist/mygo-music/compare/v0.1.15...v0.1.16
 [0.1.15]: https://github.com/egoist/mygo-music/compare/v0.1.14...v0.1.15
 [0.1.14]: https://github.com/egoist/mygo-music/compare/v0.1.13...v0.1.14
 [0.1.13]: https://github.com/egoist/mygo-music/compare/v0.1.12...v0.1.13
