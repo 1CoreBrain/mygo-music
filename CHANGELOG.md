@@ -2,6 +2,13 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.7] - 2026-11-06
+
+### Changed
+
+- A plugin's `process` permission can list the programs it may start, such as `["bin/helper-*", "ffmpeg"]`, and it can't start any other, even once you've allowed it. Installing or allowing such a plugin names those programs. `true` still means any program.
+- Updating a plugin asks again when the new version wants to start a program the old one didn't.
+
 ## [0.1.6] - 2026-11-06
 
 ### Fixed
@@ -72,6 +79,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.7]: https://github.com/egoist/mygo-music/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/egoist/mygo-music/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/egoist/mygo-music/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/egoist/mygo-music/compare/v0.1.3...v0.1.4
