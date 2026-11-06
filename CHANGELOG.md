@@ -2,6 +2,13 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.8] - 2026-11-06
+
+### Added
+
+- A plugin can say the oldest version of MyGo Music it works with, as `minAppVersion` in `plugin.json`. An older app won't install it, and says to update first.
+- Plugins can be translated: the app shows a plugin's name, settings and sidebar in your language from its `locales/zh-CN.json`, and plugins can translate their pages with `host.t` and `host.language`. Changing the language reloads the plugin's page in it.
+
 ## [0.1.7] - 2026-11-06
 
 ### Changed
@@ -79,6 +86,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.8]: https://github.com/egoist/mygo-music/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/egoist/mygo-music/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/egoist/mygo-music/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/egoist/mygo-music/compare/v0.1.4...v0.1.5
