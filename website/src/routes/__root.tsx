@@ -42,6 +42,9 @@ function RootDocument(props: { children: JSX.Element }) {
         <script innerHTML={langScript} />
         <script innerHTML={themeScript} />
         <HydrationScript />
+        {import.meta.env.PROD && (
+          <script defer src="https://u.egoist.dev/script.js" data-website-id="e2a744e5-3326-41e2-8ff3-1a5e80bcc4ac" />
+        )}
       </head>
       <body>
         <HeadContent />
