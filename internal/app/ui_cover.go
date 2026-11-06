@@ -227,10 +227,21 @@ func (a *app) npCover(c *ui.Context, tr *music.Track, art *artwork, size float32
 		}
 		a.npBreathe(box, scale)
 		in := artIn(box, bitmap(art))
-		if in < 1 {
+		// A song with no cover, or one that failed to load, shows a cover
+		// of its own; one still loading, only a plain card, so that a note
+		// doesn't flash before every cover.
+		missing := tr.Album.ImageURL == "" || (art != nil && art.failed)
+		switch {
+		case missing:
+			box.LinearGradient(ui.LinearGradient{Angle: 160, Oklab: true, From: ui.RGB(84, 84, 92), To: ui.RGB(38, 38, 44)}).
+				Border(1, white.Alpha(0.07)).Center()
+		case in < 1:
 			box.Background(white.Alpha(0.08))
 		}
 		box.Children(func() {
+			if missing {
+				ui.Icon(c, iconNote).Size(size*0.3, size*0.3).TextColor(white.Alpha(0.32))
+			}
 			artImage(c, bitmap(art), radius, in)
 			if shine > 0.01 {
 				ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Draw(func(p *ui.Painter, r ui.Rect) {

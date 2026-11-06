@@ -93,6 +93,24 @@ func TestNowPlayingFrame(t *testing.T) {
 	saveFrame(t, dir, "now-playing.png", tt.Image())
 }
 
+// With MM_FRAMES set, saves Now Playing for a local song with no cover.
+func TestNowPlayingNoCoverFrame(t *testing.T) {
+	dir := framesDir(t)
+	a := newTestApp()
+	tracks := framesTracks(a)
+	for i := range tracks {
+		tracks[i].Album.ImageURL = ""
+	}
+	a.pl.Cue(tracks)
+	a.pl.Hold(10 * time.Second)
+	a.nowPlaying, a.npPane = true, paneQueue
+	tt := ui.NewTester(a.view, 1180, 780)
+	tt.SetDark(true)
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	saveFrame(t, dir, "now-playing-no-cover.png", tt.Image())
+}
+
 // With MM_FRAMES set, saves Now Playing growing out of the player bar's
 // cover, a frame every 50 ms, and shrinking back into it, in a sheet each.
 func TestNowPlayingMotionFrames(t *testing.T) {
