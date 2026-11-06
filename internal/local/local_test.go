@@ -1286,3 +1286,27 @@ func TestScanFindsOgg(t *testing.T) {
 		t.Errorf("type: %s", st.Type)
 	}
 }
+
+// Tags read in the wrong encoding come back as what was written: GBK and UTF-8
+// that the library took for Latin-1 or left as bytes, while real Latin-1 stays.
+func TestDecodeLegacy(t *testing.T) {
+	latin1 := func(b string) string {
+		r := make([]rune, len(b))
+		for i := range len(b) {
+			r[i] = rune(b[i])
+		}
+		return string(r)
+	}
+	for _, c := range []struct{ in, want string }{
+		{latin1("\xb4\xf8\xc0\xe1\xb5\xc4\xd3\xe3"), "带泪的鱼"},
+		{"\xd5\xd4\xc0\xd7", "赵雷"}, // ID3v1, as bytes
+		{latin1("\xe8\xb5\xb5\xe9\x9b\xb7"), "赵雷"},
+		{latin1("Mot\xf6rhead"), "Motörhead"},
+		{"Caf\xe9", "Café"},
+		{"Hebe 田馥甄", "Hebe 田馥甄"},
+	} {
+		if got := decodeLegacy(c.in); got != c.want {
+			t.Errorf("decodeLegacy(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
