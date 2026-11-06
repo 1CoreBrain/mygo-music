@@ -1,3 +1,7 @@
+@import '@fontsource-variable/fraunces/opsz.css';
+@import '@fontsource/noto-serif-sc/600.css';
+@import '@fontsource/noto-serif-sc/900.css';
+
 /* Tokens. light-dark() follows the system unless data-theme picks one. */
 :root {
   color-scheme: light dark;
@@ -21,7 +25,7 @@
   --app-line: light-dark(rgb(0 0 0 / 0.07), rgb(255 255 255 / 0.07));
   --app-fill: light-dark(rgb(0 0 0 / 0.05), rgb(255 255 255 / 0.07));
 
-  --serif: 'Fraunces', 'Noto Serif SC', 'Songti SC', 'STSong', Georgia, serif;
+  --serif: 'Fraunces Variable', 'Noto Serif SC', 'Songti SC', 'STSong', Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI',
     system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
