@@ -2,6 +2,17 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.18] - 2026-11-07
+
+### Added
+
+- ALAC, AAC and WAV files play, from local folders and from plugins. WAV and ALAC show the Lossless badge.
+
+### Fixed
+
+- Big covers take much less memory to show as small thumbnails, and a cover shown at several sizes at once is fetched and decoded only once.
+- Long audio, such as a ten-hour audiobook, no longer takes a lot of memory for its spectrum, and streams that don't say how long they are get levels all the way through.
+
 ## [0.1.17] - 2026-11-07
 
 ### Added
@@ -156,6 +167,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.18]: https://github.com/egoist/mygo-music/compare/v0.1.17...v0.1.18
 [0.1.17]: https://github.com/egoist/mygo-music/compare/v0.1.16...v0.1.17
 [0.1.16]: https://github.com/egoist/mygo-music/compare/v0.1.15...v0.1.16
 [0.1.15]: https://github.com/egoist/mygo-music/compare/v0.1.14...v0.1.15
