@@ -137,13 +137,16 @@ type AlbumList struct {
 
 // Show is a podcast. Its episodes are tracks.
 type Show struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	ImageURL     string `json:"imageUrl,omitempty"`
-	Description  string `json:"description,omitempty"`
-	Publisher    string `json:"publisher,omitempty"`
-	EpisodeCount int    `json:"episodeCount,omitempty"`
-	Subscribed   bool   `json:"subscribed,omitempty"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	ImageURL    string `json:"imageUrl,omitempty"`
+	Description string `json:"description,omitempty"`
+	Publisher   string `json:"publisher,omitempty"`
+	// PublisherPage is the Browse page of who publishes it, such as their
+	// profile, which their name on the show's page opens.
+	PublisherPage string `json:"publisherPage,omitempty"`
+	EpisodeCount  int    `json:"episodeCount,omitempty"`
+	Subscribed    bool   `json:"subscribed,omitempty"`
 }
 
 // ShowPage is a show and a page of its episodes.
