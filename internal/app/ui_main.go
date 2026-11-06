@@ -574,22 +574,26 @@ func (a *app) builtinTitle(name string) string {
 
 // sourceSwitcher chooses the active source, once there is another. It takes no
 // room of its own: beside the window buttons where they sit over the sidebar, in
-// the strip they leave empty, and elsewhere just a line of text atop it.
+// the strip they leave empty, and elsewhere just a line of text atop it. It
+// drops down a list of the sources, in the colors of the account menu, with a
+// check by the active one.
 func (a *app) sourceSwitcher(c *ui.Context) {
 	if len(a.libs) < 2 {
 		return
 	}
 	p := a.pal
 	const height = 24
-	b := ui.ButtonBase(c.Key("source")).Height(height).PaddingX(7).Gap(4).Radius(7).AlignItems(ui.Center).
+	chosen := a.library.id
+	sel := ui.SelectBase(c.Key("source"), &chosen)
+	b := sel.Trigger.Height(height).PaddingX(7).Gap(4).Radius(7).AlignItems(ui.Center).
 		FocusRing(false).Label(T("Plugin"))
 	if left := c.TitleBar().Left; left > 0 {
-		b.Absolute().Top((topBar(c) - height) / 2).Left(left + 2).MaxWidth(sidebarWidth - left - 12)
+		b.Absolute().Top((topBar(c) - height) / 2).Left(left + 12).MaxWidth(sidebarWidth - left - 22)
 	} else {
 		b.AlignSelf(ui.Start).Margin(0, 0, 4, -7).MaxWidth(sidebarWidth - 28)
 	}
 	color := p.muted
-	if b.Hovered() {
+	if b.Hovered() || sel.Open() {
 		b.Background(p.hover)
 		color = p.text
 	}
@@ -597,11 +601,28 @@ func (a *app) sourceSwitcher(c *ui.Context) {
 		ui.Text(c, a.name()).FontSize(12.5).FontWeight(600).TextColor(color).SingleLine().Shrink(1).MinWidth(0)
 		ui.Icon(c, iconUpDown).Size(11, 11).TextColor(p.faint)
 	})
-	b.Menu(func(m *ui.Menu) {
+	pop := popoverColors(p.dark)
+	sel.Popup(func(panel ui.Element) {
+		panel.Margin(6, 0, 0, 0).Padding(5).Gap(1).MinWidth(180).MaxWidth(sidebarWidth+60).
+			Radius(12).Background(pop.fill).Border(0.5, pop.edge).Shadow(0, 8, 24, -4, ui.RGBA(0, 0, 0, 0.2)).
+			TransformOrigin(0, 0).
+			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.96, Y: -4}, Exit: &ui.Motion{Scale: 0.98}})
 		for _, lib := range a.libs {
-			if m.Item(lib.name()).Checked(lib == a.library).Chosen() {
-				a.switchSource(lib.id)
+			name := lib.name()
+			item := sel.Item(lib.id).Label(name).Height(30).PaddingX(8).Gap(8).Radius(7).AlignItems(ui.Center)
+			if item.Highlighted() {
+				item.Background(p.press)
 			}
+			item.Children(func() {
+				check := ui.Icon(c, iconCheck).Size(14, 14).TextColor(p.text).Shrink(0)
+				if lib != a.library {
+					check.Opacity(0)
+				}
+				ui.Text(c, name).FontSize(13).TextColor(p.text).SingleLine().Shrink(1).MinWidth(0)
+			})
 		}
 	})
+	if b.Changed() {
+		a.switchSource(chosen)
+	}
 }

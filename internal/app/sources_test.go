@@ -29,9 +29,11 @@ func chooseSource(t *testing.T, tt *ui.Tester, name string) {
 	if err := tt.Click("Plugin"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem(name); err != nil {
-		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+	tt.Frame()
+	if err := tt.Click(name); err != nil {
+		t.Fatal(err)
 	}
+	tt.Frame()
 }
 
 // The sidebar's switcher only shows once there's another source to choose.
@@ -46,6 +48,42 @@ func TestSwitcherNeedsAnotherSource(t *testing.T) {
 	tt.Frame()
 	if _, ok := tt.Find("Plugin"); !ok {
 		t.Error("no switcher with two sources")
+	}
+}
+
+// The switcher's dropdown is driven by keys too: Escape closes it on the
+// source it was on, and Down then Enter switches to the next one.
+func TestSwitchSourceWithKeys(t *testing.T) {
+	a := newTestApp()
+	_, lib := addOther(a)
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+
+	if err := tt.Click("Plugin"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("Other"); !ok {
+		t.Fatal("the dropdown didn't open")
+	}
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if _, ok := tt.Find("Other"); ok || a.library == lib {
+		t.Fatalf("Escape: open %v, active %q", ok, a.library.id)
+	}
+
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.library != lib || a.settings.Source != "other" {
+		t.Fatalf("active %q, remembered %q", a.library.id, a.settings.Source)
+	}
+	if _, ok := tt.Find("fake"); ok {
+		t.Error("the dropdown stayed open")
 	}
 }
 
