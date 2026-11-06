@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,7 +22,8 @@ import (
 // Plugins install from GitHub: a repository's latest release, as the zip it
 // offers for this platform, or for all, or else its source; without a release,
 // the latest commit of its default branch. plugin.json is at the root of what
-// that holds, or of its one folder, as GitHub's own archives have it.
+// that holds, or of its one folder, as GitHub's own archives have it. They
+// install from this machine too, from a plugin's folder or a zip of one.
 
 // originFile records in a plugin's folder where it was installed from.
 const originFile = ".origin.json"
@@ -51,6 +53,9 @@ type Release struct {
 // whether to install it.
 type Pending struct {
 	Release
+	// Path is the folder or zip it came from, for one from this machine, which
+	// has no Repo.
+	Path     string
 	Manifest Manifest
 	root     string // where it unpacked
 	tmp      string // the folder to remove with it
@@ -180,16 +185,22 @@ func Fetch(repo, dir string) (*Pending, error) {
 	if err != nil {
 		return nil, err
 	}
+	return pending(dir, func(tmp string) (*Pending, error) { return fetchInto(rel, tmp) })
+}
+
+// pending makes a plugin waiting to be installed, in a folder of its own in dir
+// that goes with it if that fails. The folder is in the same one as the
+// plugins, for moving it in place to be one step, and its dot leaves it out of
+// Discover, if the app quits with it here.
+func pending(dir string, into func(tmp string) (*Pending, error)) (*Pending, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	// In the same folder, for moving it in place to be one step. The dot leaves
-	// it out of Discover, if the app quits with it here.
 	tmp, err := os.MkdirTemp(dir, ".installing-")
 	if err != nil {
 		return nil, err
 	}
-	p, err := fetchInto(rel, tmp)
+	p, err := into(tmp)
 	if err != nil {
 		os.RemoveAll(tmp)
 		return nil, err
@@ -206,19 +217,126 @@ func fetchInto(rel *Release, tmp string) (*Pending, error) {
 	if err := unzip(archive, unpacked); err != nil {
 		return nil, fmt.Errorf("unpacking %s: %w", rel.Repo, err)
 	}
+	return checked(unpacked, tmp, rel.Repo, &Pending{Release: *rel})
+}
+
+// checked finds the plugin in what was unpacked, and fills in p with it if it's
+// one that compiles, with a name that can be a folder's. Nothing of it runs.
+func checked(unpacked, tmp, from string, p *Pending) (*Pending, error) {
 	root, err := pluginRoot(unpacked)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", rel.Repo, err)
+		return nil, fmt.Errorf("%s: %w", from, err)
 	}
-	checked, err := Load(root, filepath.Join(tmp, "data"))
+	loaded, err := Load(root, filepath.Join(tmp, "data"))
 	if err != nil {
 		return nil, err
 	}
-	id := checked.manifest.ID
+	id := loaded.manifest.ID
 	if id == local.ID || !pluginName.MatchString(id) {
-		return nil, fmt.Errorf("%s: a plugin can't be called %q", rel.Repo, id)
+		return nil, fmt.Errorf("%s: a plugin can't be called %q", from, id)
 	}
-	return &Pending{Release: *rel, Manifest: checked.manifest, root: root, tmp: tmp}, nil
+	p.Manifest, p.root, p.tmp = loaded.manifest, root, tmp
+	return p, nil
+}
+
+// Open copies a plugin from this machine, its folder or a zip of one, into dir,
+// the plugins' folder, without installing it, and checks it as Fetch does. Its
+// version is what plugin.json says.
+func Open(path, dir string) (*Pending, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	name := filepath.Base(path)
+	return pending(dir, func(tmp string) (*Pending, error) {
+		unpacked := filepath.Join(tmp, "unpacked")
+		if info.IsDir() {
+			err = copyPlugin(path, unpacked)
+		} else {
+			err = unzip(path, unpacked)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", name, err)
+		}
+		p, err := checked(unpacked, tmp, name, &Pending{Path: path})
+		if err != nil {
+			return nil, err
+		}
+		p.Version = p.Manifest.Version
+		return p, nil
+	})
+}
+
+// copyPlugin copies a plugin's folder to dir, as unzip unpacks one: within
+// the same bounds, without links, and keeping programs executable. What's
+// hidden stays behind, such as .git, and folders being installed, if dir is
+// in it.
+func copyPlugin(from, dir string) error {
+	var files int
+	var total int64
+	return filepath.WalkDir(from, func(path string, e fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(from, path)
+		if err != nil {
+			return err
+		}
+		if rel != "." && strings.HasPrefix(e.Name(), ".") {
+			if e.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		to := filepath.Join(dir, rel)
+		if e.Type()&fs.ModeSymlink != 0 {
+			return fmt.Errorf("a link in the plugin: %s", filepath.ToSlash(rel))
+		}
+		if e.IsDir() {
+			return os.MkdirAll(to, 0o755)
+		}
+		if !e.Type().IsRegular() {
+			return nil
+		}
+		if files++; files > maxFiles {
+			return errors.New("too many files")
+		}
+		info, err := e.Info()
+		if err != nil {
+			return err
+		}
+		perm := os.FileMode(0o644)
+		if info.Mode()&0o111 != 0 {
+			perm = 0o755
+		}
+		n, err := copyFile(path, to, perm, int64(maxUnpacked)-total)
+		if err != nil {
+			return err
+		}
+		if total += n; total > maxUnpacked {
+			return errors.New("the plugin is too large")
+		}
+		return nil
+	})
+}
+
+func copyFile(from, to string, perm os.FileMode, limit int64) (int64, error) {
+	in, err := os.Open(from)
+	if err != nil {
+		return 0, err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(to, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+	if err != nil {
+		return 0, err
+	}
+	defer out.Close()
+	// One byte over says it's too large, rather than cutting it short.
+	n, err := io.Copy(out, io.LimitReader(in, limit+1))
+	if err != nil {
+		return n, err
+	}
+	return n, out.Close()
 }
 
 func download(url, path string) error {
@@ -389,7 +507,8 @@ func (p *Pending) Discard() { os.RemoveAll(p.tmp) }
 
 // Install puts the plugin in the plugins' folder dir, in place of the one it
 // replaces, if any, whose data stays. A plugin of that name from elsewhere stays
-// too: the new one can't take its name, and what it signed in to.
+// too: the new one can't take its name, and what it signed in to. One from this
+// machine is from nowhere, as one dropped in is, and replaces only such.
 func (p *Pending) Install(dir string) error {
 	defer os.RemoveAll(p.tmp)
 	target := filepath.Join(dir, p.Manifest.ID)
@@ -400,12 +519,14 @@ func (p *Pending) Install(dir string) error {
 			return fmt.Errorf("a plugin called %s is already installed", p.Manifest.ID)
 		}
 	}
-	b, err := json.Marshal(Origin{Repo: p.Repo, Version: p.Version})
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(p.root, originFile), b, 0o644); err != nil {
-		return err
+	if p.Repo != "" {
+		b, err := json.Marshal(Origin{Repo: p.Repo, Version: p.Version})
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(p.root, originFile), b, 0o644); err != nil {
+			return err
+		}
 	}
 	// Out of the way, then in, so that what fails leaves the one there.
 	old := filepath.Join(p.tmp, "replaced")

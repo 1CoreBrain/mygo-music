@@ -8,18 +8,36 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"mygo-music/internal/plugin"
 )
 
-// Plugins install from GitHub repositories, and update from where they came.
+// Plugins install from GitHub repositories, and update from where they came, or
+// from a folder or zip on this machine.
 
-// These reach GitHub; tests replace them.
+// These reach GitHub, and the disk; tests replace them.
 var (
 	fetchPlugin  = plugin.Fetch
 	latestPlugin = plugin.Latest
+	openPlugin   = plugin.Open
 )
+
+// pickPlugin asks the listener for a plugin's folder, or a zip of one, with a
+// native dialog, on a goroutine, for it blocks; tests replace it.
+var pickPlugin = func(a *app, folder bool, got func(string)) {
+	go func() {
+		opts := mygo.OpenDialogOptions{Title: T("Install a Plugin"), ButtonLabel: T("Install"), Directory: folder}
+		if !folder {
+			opts.Filters = []mygo.FileFilter{{Name: T("Zip Archive"), Extensions: []string{"zip"}}}
+		}
+		paths, err := mygo.Dialog.Open(opts)
+		if err == nil && len(paths) > 0 {
+			a.post(func() { got(paths[0]) })
+		}
+	}()
+}
 
 // pluginCheckEvery is how often plugins are checked for new versions: once a day,
 // as the app is. GitHub's API allows few requests without an account.
@@ -54,6 +72,27 @@ func (a *app) installFromRepo() {
 			in.pending = pending
 		})
 	}()
+}
+
+// installFromDisk asks for a plugin's folder, or a zip of one, and copies it in
+// to ask about it, as one from GitHub is asked about.
+func (a *app) installFromDisk(folder bool) {
+	in := &a.installer
+	pickPlugin(a, folder, func(path string) {
+		in.busy, in.err = true, ""
+		a.cancelInstall()
+		go func() {
+			pending, err := openPlugin(path, pluginsDir())
+			a.post(func() {
+				in.busy = false
+				if err != nil {
+					in.err = err.Error()
+					return
+				}
+				in.pending = pending
+			})
+		}()
+	})
 }
 
 // installError says what went wrong, in the listener's language if it can.
@@ -279,6 +318,16 @@ func (a *app) installSettings(c *ui.Context, row settingsRow, block settingsBloc
 			}
 		})
 	})
+	row(T("Install from This Computer"), T("A plugin's folder, or a zip of one"), func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			if ui.Button(c.Key("install-folder"), T("Folder…")).Disabled(in.busy).Clicked() {
+				a.installFromDisk(true)
+			}
+			if ui.Button(c.Key("install-zip"), T("Zip…")).Disabled(in.busy).Clicked() {
+				a.installFromDisk(false)
+			}
+		})
+	})
 	if in.err != "" {
 		block(in.err, func() {
 			ui.Text(c, in.err).FontSize(12).TextColor(p.accent).LineHeight(1.4).Padding(10, 16)
@@ -292,8 +341,12 @@ func (a *app) installSettings(c *ui.Context, row settingsRow, block settingsBloc
 // installConfirm says what a plugin is and what it asks for, before it's in.
 func (a *app) installConfirm(c *ui.Context, pending *plugin.Pending, p palette) {
 	ui.Column(c).Padding(12, 16).Gap(8).Background(p.hover).Children(func() {
-		ui.Text(c, pending.Manifest.Name+" "+pending.Version).FontSize(13.5).FontWeight(600)
-		ui.Text(c, Tf("From %s", pending.Repo)).FontSize(12).TextColor(p.muted)
+		ui.Text(c, strings.TrimSpace(pending.Manifest.Name+" "+pending.Version)).FontSize(13.5).FontWeight(600)
+		from := pending.Repo
+		if from == "" {
+			from = pending.Path
+		}
+		ui.Text(c, Tf("From %s", from)).FontSize(12).TextColor(p.muted).LineHeight(1.4)
 		perms := pending.Manifest.Permissions
 		switch {
 		case slices.Contains(perms.Network, "*"):
@@ -311,7 +364,7 @@ func (a *app) installConfirm(c *ui.Context, pending *plugin.Pending, p palette) 
 			if ui.Button(c.Key("cancel-install"), T("Cancel")).Clicked() {
 				a.cancelInstall()
 			}
-			if ui.PrimaryButton(c.Key("confirm-install"), T("Install")).Clicked() {
+			if ui.PrimaryButton(c.Key("confirm-install"), T("Install")).Label(Tf("Install %s", pending.Manifest.Name)).Clicked() {
 				a.confirmInstall()
 			}
 		})

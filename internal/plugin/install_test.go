@@ -334,3 +334,98 @@ func TestIsNewer(t *testing.T) {
 		}
 	}
 }
+
+// A plugin's folder, or a zip of one, installs as one from GitHub does, from
+// nowhere: nothing shows until it's in, what's hidden in the folder stays
+// behind, a program stays executable, and installing it again replaces it.
+func TestInstallFromDisk(t *testing.T) {
+	folder := t.TempDir()
+	for name, body := range map[string]string{
+		"plugin.json": goodManifest,
+		"index.js":    `export function suggest() { return ["hi"]; }`,
+		"bin/tool":    "#!/bin/sh\n",
+		".git/HEAD":   "ref: refs/heads/main\n",
+	} {
+		path := filepath.Join(folder, filepath.FromSlash(name))
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	os.Chmod(filepath.Join(folder, "bin", "tool"), 0o755)
+	archive := filepath.Join(t.TempDir(), "good.zip")
+	if err := os.WriteFile(archive, goodArchive(t, "good/"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{folder, archive} {
+		dir := t.TempDir()
+		p, err := Open(path, dir)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if p.Version != "1.0.0" || p.Repo != "" || p.Path != path {
+			t.Errorf("%s: version %q, repo %q, path %q", path, p.Version, p.Repo, p.Path)
+		}
+		if found := Discover(dir, t.TempDir()); len(found) != 0 {
+			t.Errorf("%s: showed before it was installed", path)
+		}
+		if err := p.Install(dir); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		found := Discover(dir, t.TempDir())
+		if len(found) != 1 || found[0].Origin() != nil {
+			t.Fatalf("%s: found %d, the first from %+v", path, len(found), found[0].Origin())
+		}
+		if runtime.GOOS != "windows" {
+			if info, err := os.Stat(filepath.Join(dir, "good", "bin", "tool")); err != nil || info.Mode()&0o111 == 0 {
+				t.Errorf("%s: the program isn't executable: %v", path, err)
+			}
+		}
+		if _, err := os.Stat(filepath.Join(dir, "good", ".git")); !os.IsNotExist(err) {
+			t.Errorf("%s: brought .git along", path)
+		}
+		if p, err = Open(path, dir); err != nil {
+			t.Fatal(err)
+		}
+		if err := p.Install(dir); err != nil {
+			t.Errorf("%s: didn't replace itself: %v", path, err)
+		}
+	}
+}
+
+// One from this machine can't take the name of one from GitHub, and a folder
+// with a link in it, which could point anywhere, installs nothing.
+func TestInstallFromDiskRefuses(t *testing.T) {
+	folder := t.TempDir()
+	os.WriteFile(filepath.Join(folder, "plugin.json"), []byte(goodManifest), 0o644)
+	os.WriteFile(filepath.Join(folder, "index.js"), []byte(""), 0o644)
+
+	g := &github{tag: "v1", archive: goodArchive(t, "")}
+	g.start(t)
+	dir := t.TempDir()
+	p, err := Fetch("owner/repo", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Install(dir); err != nil {
+		t.Fatal(err)
+	}
+	if p, err = Open(folder, dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Install(dir); err == nil {
+		t.Error("took the name of one from GitHub")
+	}
+
+	if err := os.Symlink("/etc/passwd", filepath.Join(folder, "l")); err != nil {
+		t.Skip("can't make links here:", err)
+	}
+	dir = t.TempDir()
+	if p, err := Open(folder, dir); err == nil {
+		p.Discard()
+		t.Error("opened a folder with a link")
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Errorf("left behind %v", entries)
+	}
+}

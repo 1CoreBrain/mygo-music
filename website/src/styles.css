@@ -215,15 +215,26 @@ p {
   position: sticky;
   top: 0;
   z-index: 50;
-  transition:
-    background 0.3s,
-    box-shadow 0.3s;
 }
-.nav.scrolled {
-  background: light-dark(rgb(251 247 241 / 0.78), rgb(20 18 20 / 0.72));
-  backdrop-filter: saturate(1.6) blur(18px);
-  -webkit-backdrop-filter: saturate(1.6) blur(18px);
+/* The frosted backing lives on its own layer so it can fade in (a
+   backdrop-filter can't transition) and so the nav doesn't become the
+   backdrop root of the language menu, whose own blur would then miss the
+   page behind it. */
+.nav::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: light-dark(rgb(251 247 241 / 0.72), rgb(20 18 20 / 0.66));
+  backdrop-filter: saturate(1.8) blur(20px);
+  -webkit-backdrop-filter: saturate(1.8) blur(20px);
   box-shadow: 0 1px 0 var(--line);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.nav.scrolled::before {
+  opacity: 1;
 }
 .nav-inner {
   max-width: 1160px;

@@ -3,6 +3,8 @@ package app
 import (
 	"errors"
 	"mygo-music/internal/plugin"
+	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -1130,6 +1132,55 @@ func TestInstallPluginFromSettings(t *testing.T) {
 	runPost(t, ch)
 	if a.installer.busy || a.installer.err != T("There's no such public repository on GitHub") {
 		t.Errorf("busy %v, says %q", a.installer.busy, a.installer.err)
+	}
+}
+
+// Picking a plugin's folder copies it in and asks about it, as one from GitHub
+// is asked about, until it's turned down; a zip that's no zip says so.
+func TestInstallPluginFromDisk(t *testing.T) {
+	src := t.TempDir()
+	os.WriteFile(filepath.Join(src, "plugin.json"), []byte(`{"id":"disk","name":"Disk"}`), 0o644)
+	os.WriteFile(filepath.Join(src, "index.js"), []byte(""), 0o644)
+	notZip := filepath.Join(src, "index.js")
+	plugins := t.TempDir()
+	wasPick, wasOpen := pickPlugin, openPlugin
+	defer func() { pickPlugin, openPlugin = wasPick, wasOpen }()
+	pickPlugin = func(a *app, folder bool, got func(string)) {
+		if folder {
+			got(src)
+		} else {
+			got(notZip)
+		}
+	}
+	openPlugin = func(path, _ string) (*plugin.Pending, error) { return plugin.Open(path, plugins) }
+	a := newTestApp()
+	ch := posts(a)
+	a.settingsPage = "plugins"
+	tt := ui.NewTester(a.settingsView, 780, 1000)
+	tt.Frame()
+
+	if err := tt.Click(T("Folder…")); err != nil {
+		t.Fatal(err)
+	}
+	runPost(t, ch)
+	tt.Frame()
+	if a.installer.pending == nil || a.installer.err != "" {
+		t.Fatalf("asks about nothing, and says %q", a.installer.err)
+	}
+	if err := tt.Click(T("Cancel")); err != nil {
+		t.Fatal(err)
+	}
+	if a.installer.pending != nil {
+		t.Error("still asks about it")
+	}
+
+	tt.Frame()
+	if err := tt.Click(T("Zip…")); err != nil {
+		t.Fatal(err)
+	}
+	runPost(t, ch)
+	if a.installer.pending != nil || a.installer.err == "" || a.installer.busy {
+		t.Errorf("pending %v, busy %v, says %q", a.installer.pending, a.installer.busy, a.installer.err)
 	}
 }
 

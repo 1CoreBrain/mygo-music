@@ -33,7 +33,7 @@ gh release create sherpa-onnx-2.0.1 --prerelease --latest=false build/sherpa/*
 
 ## Plugins
 
-A plugin is a folder in the app's `plugins` directory (Settings > Plugins > Show Folder) with a `plugin.json` and one JavaScript or TypeScript file. Install one from GitHub in Settings > Plugins, by its repository, or drop the folder in by hand. There's nothing to build, and the same plugin runs on every platform. [`examples/demo-plugin`](examples/demo-plugin) does everything a plugin can with made-up data: copy it to start.
+A plugin is a folder in the app's `plugins` directory (Settings > Plugins > Show Folder) with a `plugin.json` and one JavaScript or TypeScript file. Install one in Settings > Plugins from GitHub, by its repository, or from its folder or a zip of it on this computer, or drop the folder in by hand. There's nothing to build, and the same plugin runs on every platform. [`examples/demo-plugin`](examples/demo-plugin) does everything a plugin can with made-up data: copy it to start.
 
 ```json
 {
