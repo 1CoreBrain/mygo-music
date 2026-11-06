@@ -51,6 +51,10 @@ func (a *app) openSettings() {
 	})
 	a.settingsWin.OnClosed(func() {
 		a.settingsWin = nil
+		// Its sign-in dialog goes with it; a sign-in on its way still counts.
+		if a.signIn.here {
+			a.signIn.open = false
+		}
 		a.syncDock()
 	})
 	a.syncDock()
@@ -211,6 +215,7 @@ func (a *app) settingsView(c *ui.Context) {
 		})
 	})
 	a.installDialog(c, p)
+	a.signInDialog(c, p, true)
 }
 
 // settingsSidebarWidth is the width of the list of the settings' pages.
@@ -589,16 +594,17 @@ func (a *app) pluginSettings(c *ui.Context, lib *library, p palette) {
 			a.pluginUpdateButton(c, lib)
 			switch {
 			case !enabled:
+			case lib.account == nil && lib.accountUnknown():
+				// A source not yet used hasn't said who's signed in: asked now, its
+				// row offers no sign-in to someone who already is.
+				a.loadAccount(lib)
 			case lib.account != nil && lib.can("signOut"):
 				if ui.Button(c.Key("sign-out"), T("Sign Out")).Clicked() {
 					a.signOut(lib)
 				}
 			case lib.account == nil && lib.can("signIn"):
 				if ui.PrimaryButton(c.Key("sign-in"), T("Sign In")).Clicked() {
-					a.promptSignIn(lib)
-					if a.win != nil {
-						a.win.Invalidate()
-					}
+					a.promptSignInInSettings(lib)
 				}
 			}
 			a.pluginMenu(c, lib, p)

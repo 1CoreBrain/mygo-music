@@ -28,6 +28,7 @@ func mygoOpenFolders(a *app) ([]string, error) {
 type signInDialog struct {
 	open    bool
 	lib     *library
+	here    bool // asked in the settings window, which shows it, not the main one
 	waiting bool
 	gen     int // counts the ones started, to tell the last
 	err     string
@@ -99,6 +100,12 @@ func (a *app) promptSignIn(lib *library) {
 	a.signIn = signInDialog{open: true, lib: lib, gen: a.signIn.gen + 1}
 }
 
+// promptSignInInSettings asks it in the settings window, where they asked,
+// instead of bringing up the main window behind it.
+func (a *app) promptSignInInSettings(lib *library) {
+	a.signIn = signInDialog{open: true, lib: lib, here: true, gen: a.signIn.gen + 1}
+}
+
 // startSignIn signs in to the source asked about, off the main thread: it
 // waits for the listener at the source. A sign-in that ends after they closed
 // the dialog still counts.
@@ -112,6 +119,13 @@ func (a *app) startSignIn() {
 	d.prompt, d.qr = music.SignInPrompt{}, nil
 	d.asked = time.Time{}
 	gen := d.gen
+	over := a.win
+	if d.here && a.settingsWin != nil {
+		over = a.settingsWin
+	}
+	if a.signInOver != nil {
+		a.signInOver.Store(over)
+	}
 	if p, ok := lib.src.(music.Prompter); ok {
 		p.OnSignInPrompt(func(prompt music.SignInPrompt) {
 			a.post(func() {
@@ -176,10 +190,13 @@ func (a *app) signOut(lib *library) {
 }
 
 // signInDialog says which source the listener signs in to, while it waits for
-// them there.
-func (a *app) signInDialog(c *ui.Context) {
-	p := a.pal
+// them there, in the window it was asked in: settings says whether that's
+// the settings window.
+func (a *app) signInDialog(c *ui.Context, p palette, settings bool) {
 	d := &a.signIn
+	if d.here != settings {
+		return
+	}
 	ui.DialogBase(c.Key("sign-in"), &d.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
 		// What it holds changes its height, and it follows at once: a spring

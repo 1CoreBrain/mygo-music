@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sync/atomic"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -82,6 +83,10 @@ type app struct {
 	// signInPages are the windows of plugins' sign-in pages showing, by
 	// plugin. Main thread only.
 	signInPages map[string]*mygo.Window
+	// signInOver is the window the sign-in dialog is in, for a sign-in page
+	// to open over: the settings window's, if asked there. Set on the main
+	// thread, read on the plugin's.
+	signInOver  *atomic.Pointer[mygo.Window]
 	naming      nameDialog         // the name of a playlist asked for
 	deleting    deleteDialog       // whether to delete a playlist, asked
 	toast       string             // a message to show once
@@ -305,6 +310,7 @@ func Run() error {
 		return nil
 	}
 	a := &app{
+		signInOver:  new(atomic.Pointer[mygo.Window]),
 		settingText: map[string]*string{},
 		lyricAt:     -1,
 		queueAt:     -1,

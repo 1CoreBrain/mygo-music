@@ -24,8 +24,8 @@ const (
 )
 
 // webSignIn shows a plugin's sign-in page in a window of its own, over the
-// app's, in a session of its own: it sees none of the listener's other
-// sign-ins, and is forgotten once the window closes. It answers the Cookie
+// one its dialog is in, in a session of its own: it sees none of the
+// listener's other sign-ins, and is forgotten once the window closes. It answers the Cookie
 // header of the address the plugin asked for once the cookies it named are
 // all there, and closes the window. Closing it first is giving up.
 func (a *app) webSignIn(o plugin.WebSignIn) (string, error) {
@@ -33,6 +33,12 @@ func (a *app) webSignIn(o plugin.WebSignIn) (string, error) {
 		return "", errors.New(T("This computer can't show the page to sign in on"))
 	}
 	session := mygo.NewEphemeralSession()
+	over := a.win
+	if a.signInOver != nil {
+		if w := a.signInOver.Load(); w != nil {
+			over = w
+		}
+	}
 	win := mygo.NewWindow(mygo.WindowOptions{
 		Title:     Tf("Sign in to %s", o.Name),
 		URL:       o.URL,
@@ -40,7 +46,7 @@ func (a *app) webSignIn(o plugin.WebSignIn) (string, error) {
 		Height:    680,
 		MinWidth:  360,
 		MinHeight: 480,
-		Parent:    a.win,
+		Parent:    over,
 		Page:      mygo.PageOptions{Session: session, UserAgent: o.UserAgent},
 	})
 	closed := make(chan struct{})

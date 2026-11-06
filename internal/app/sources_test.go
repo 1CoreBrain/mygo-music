@@ -647,6 +647,47 @@ func TestSignInAndOut(t *testing.T) {
 	}
 }
 
+// Sign In in the settings asks in the settings window. It used to open the
+// dialog in the main window, behind the settings, where it went unseen.
+func TestSignInFromSettingsAsksThere(t *testing.T) {
+	a := newTestApp()
+	a.settingsPage = "plugins"
+	main := ui.NewTester(a.view, 1200, 800)
+	settings := ui.NewTester(a.settingsView, 780, 1000)
+	main.Frame()
+	settings.Frame()
+	if err := settings.Click("Sign In"); err != nil {
+		t.Fatal(err)
+	}
+	settled(settings)
+	settled(main)
+	if _, ok := settings.Find("Cancel"); !ok {
+		t.Errorf("no dialog in the settings: %q", settings.Texts())
+	}
+	if _, ok := main.Find("Cancel"); ok {
+		t.Error("the dialog opened in the main window")
+	}
+}
+
+// The settings ask a source not yet used who is signed in, and offer to sign
+// out of it. They used to offer Sign In, as it hadn't been asked yet.
+func TestSettingsAskAnUnusedSourceItsAccount(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	other := newFakeSource("other")
+	other.account = func() (*music.Account, error) { return &music.Account{ID: "1", Name: "小明"}, nil }
+	lib := addFake(a, other)
+	lib.started, lib.accountAsked = false, false
+	a.settingsPage = "plugins"
+	settings := ui.NewTester(a.settingsView, 780, 1000)
+	settings.Frame()
+	until(t, ch, func() bool { return lib.account != nil })
+	settled(settings)
+	if _, ok := settings.Find("Sign Out"); !ok {
+		t.Errorf("doesn't offer to sign out: %q", settings.Texts())
+	}
+}
+
 // A sign-in that fails says why in its dialog, ready to try again.
 func TestSignInFails(t *testing.T) {
 	a := newTestApp()
@@ -679,7 +720,7 @@ func TestSignInFailingAtOnceStaysPut(t *testing.T) {
 		}
 		return nil, errors.New(msg)
 	}
-	tt := ui.NewTester(func(c *ui.Context) { a.signInDialog(c) }, 800, 600)
+	tt := ui.NewTester(func(c *ui.Context) { a.signInDialog(c, a.pal, false) }, 800, 600)
 	a.promptSignIn(a.library)
 	settled(tt)
 	if err := tt.Click(T("Sign In")); err != nil {
