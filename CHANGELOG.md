@@ -2,6 +2,17 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.11] - 2026-11-07
+
+### Changed
+
+- Checking plugins for updates uses your GitHub token, from `GITHUB_TOKEN`, `GH_TOKEN` or `gh auth token`, so frequent checks no longer run into GitHub's limit. Plugins from private repositories can be installed and updated with it too.
+- Updating a plugin installs the version its check found, rather than asking GitHub again.
+
+### Fixed
+
+- On Windows and Linux, the + in Settings > Plugins no longer sits under the window's close button.
+
 ## [0.1.10] - 2026-11-06
 
 ### Fixed
@@ -103,6 +114,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.11]: https://github.com/egoist/mygo-music/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/egoist/mygo-music/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/egoist/mygo-music/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/egoist/mygo-music/compare/v0.1.7...v0.1.8
