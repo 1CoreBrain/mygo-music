@@ -79,7 +79,7 @@ Export a function for each thing the plugin does. Each takes one object of param
 | `played` | `{id}` | |
 | `liked` | `{offset}` | `{tracks, more}` |
 | `isLiked` | `{ids}` | `{id: bool}` |
-| `like` | `{id, on}` | |
+| `like`, `likeEpisode` | `{id, on}` | `like` likes a song, and `likeEpisode` an episode: without it, episodes show no heart |
 | `album` | `{id}` | `{album, tracks}` |
 | `artist` | `{id}` | `{artist, tracks, albums}` |
 | `saveAlbum`, `followArtist`, `savePlaylist`, `subscribeShow` | `{id, on}` | |

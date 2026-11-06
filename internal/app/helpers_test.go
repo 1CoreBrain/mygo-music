@@ -76,6 +76,7 @@ type fakeSource struct {
 	browse      func(page string) (*music.Browse, error)
 	isLiked     func(ids []string) (map[string]bool, error)
 	like        func(id string, on bool) error
+	likeEpisode func(id string, on bool) error
 	create      func(name string) (*music.Playlist, error)
 	rename      func(id, name string) error
 	remove      func(id string) error
@@ -209,6 +210,12 @@ func (s *fakeSource) Like(id string, on bool) error {
 		return nil
 	}
 	return s.like(id, on)
+}
+func (s *fakeSource) LikeEpisode(id string, on bool) error {
+	if s.likeEpisode == nil {
+		return nil
+	}
+	return s.likeEpisode(id, on)
 }
 func (s *fakeSource) CreatePlaylist(name string) (*music.Playlist, error) {
 	if s.create == nil {

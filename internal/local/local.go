@@ -342,6 +342,9 @@ func (s *Source) Like(id string, on bool) error {
 	}, true)
 }
 
+// LikeEpisode: files on disk are no podcasts.
+func (s *Source) LikeEpisode(string, bool) error { return music.ErrUnsupported }
+
 // Recent answers the tracks played last, those no longer on disk left out.
 func (s *Source) Recent() ([]music.Track, error) {
 	s.mu.RLock()

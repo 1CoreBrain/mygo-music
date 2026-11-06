@@ -31,7 +31,7 @@ func TestDemoPluginDoesEverything(t *testing.T) {
 	}
 	for _, name := range []string{
 		"signIn", "signOut", "account", "setSetting", "home", "browse", "search", "suggest", "recent", "played",
-		"liked", "isLiked", "like", "album", "artist", "saveAlbum", "savedAlbums", "followArtist", "playlists",
+		"liked", "isLiked", "like", "likeEpisode", "album", "artist", "saveAlbum", "savedAlbums", "followArtist", "playlists",
 		"playlist", "createPlaylist", "renamePlaylist", "deletePlaylist", "addToPlaylist", "removeFromPlaylist",
 		"movePlaylistTrack", "savePlaylist", "shows", "show", "subscribeShow", "stations", "stationNext", "comments",
 		"likeComment", "postComment", "lyrics", "stream", "remotePlay", "remotePause", "remoteResume", "remoteSeek",

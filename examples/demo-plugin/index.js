@@ -141,6 +141,7 @@ export function isLiked({ ids }) {
 export function like({ id, on }) {
   toggled("liked", id, on);
 }
+export { like as likeEpisode };
 
 // Albums and artists.
 export { getAlbum as album, getArtist as artist };

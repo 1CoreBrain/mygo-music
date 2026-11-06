@@ -152,6 +152,10 @@ func (p *Plugin) Like(id string, on bool) error {
 	return p.call("like", map[string]any{"id": id, "on": on}, nil)
 }
 
+func (p *Plugin) LikeEpisode(id string, on bool) error {
+	return p.call("likeEpisode", map[string]any{"id": id, "on": on}, nil)
+}
+
 func (p *Plugin) CreatePlaylist(name string) (*music.Playlist, error) {
 	var pl music.Playlist
 	if err := p.call("createPlaylist", map[string]string{"name": name}, &pl); err != nil {

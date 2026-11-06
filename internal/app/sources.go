@@ -27,7 +27,7 @@ var capabilities = []string{
 	"search", "suggest",
 	"playlists", "playlist", "album", "artist", "liked", "recent",
 	"home", "browse",
-	"isLiked", "like",
+	"isLiked", "like", "likeEpisode",
 	"createPlaylist", "renamePlaylist", "deletePlaylist", "addToPlaylist", "removeFromPlaylist", "movePlaylistTrack", "savePlaylist",
 	"followArtist", "saveAlbum", "savedAlbums",
 	"shows", "show", "subscribeShow",

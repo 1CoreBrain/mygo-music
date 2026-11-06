@@ -62,7 +62,8 @@ func TestLikeEpisode(t *testing.T) {
 	calls := make(chan call, 4)
 	a := newTestApp()
 	fake(a).isLiked = func(ids []string) (map[string]bool, error) { asked <- ids; return nil, nil }
-	fake(a).like = func(id string, like bool) error { calls <- call{id, like}; return nil }
+	fake(a).like = func(string, bool) error { t.Error("liked the episode as a song"); return nil }
+	fake(a).likeEpisode = func(id string, like bool) error { calls <- call{id, like}; return nil }
 	a.account = &music.Account{ID: "1"}
 	a.pl.Cue([]music.Track{{ID: "13", Name: "第一期", ShowID: "5", Duration: 600000}})
 	tt := ui.NewTester(a.view, 1200, 800)
@@ -89,6 +90,26 @@ func TestLikeEpisode(t *testing.T) {
 	}
 	if len(asked) > 0 {
 		t.Error("asked again whether the episode is liked")
+	}
+}
+
+// An episode of a source that likes songs but not episodes has no heart, and
+// ⌘D leaves it be: NetEase's liked songs refuse episodes, so every like failed.
+func TestNoLikeForEpisodeSourceCantLike(t *testing.T) {
+	a := newTestApp()
+	without(a, "likeEpisode")
+	fake(a).like = func(string, bool) error { t.Error("liked the episode as a song"); return nil }
+	a.account = &music.Account{ID: "1"}
+	a.pl.Cue([]music.Track{{ID: "13", Name: "第一期", ShowID: "5", Duration: 600000}})
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Advance(time.Second)
+	tt.Frame()
+	if err := tt.Click("Like"); err == nil {
+		t.Error("the episode has a heart")
+	}
+	a.likeCurrent()
+	if a.liked["13"] || a.toast != "" {
+		t.Errorf("liked %v, toast %q", a.liked["13"], a.toast)
 	}
 }
 
@@ -191,7 +212,7 @@ func TestLikeGoesBack(t *testing.T) {
 func TestLikeEpisodeRow(t *testing.T) {
 	liked := make(chan string, 4)
 	a := catalogApp()
-	fake(a).like = func(id string, like bool) error { liked <- id; return nil }
+	fake(a).likeEpisode = func(id string, like bool) error { liked <- id; return nil }
 	a.account = &music.Account{ID: "1"}
 	a.liked = map[string]bool{"40": true}
 	a.open(route{page: pageShow, id: "5"})

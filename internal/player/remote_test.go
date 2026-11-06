@@ -31,6 +31,7 @@ func (nothing) Home() (*music.Browse, error)                     { return nil, m
 func (nothing) Browse(string) (*music.Browse, error)             { return nil, music.ErrUnsupported }
 func (nothing) IsLiked([]string) (map[string]bool, error)        { return nil, music.ErrUnsupported }
 func (nothing) Like(string, bool) error                          { return music.ErrUnsupported }
+func (nothing) LikeEpisode(string, bool) error                   { return music.ErrUnsupported }
 func (nothing) CreatePlaylist(string) (*music.Playlist, error)   { return nil, music.ErrUnsupported }
 func (nothing) RenamePlaylist(string, string) error              { return music.ErrUnsupported }
 func (nothing) DeletePlaylist(string) error                      { return music.ErrUnsupported }

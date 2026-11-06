@@ -90,6 +90,15 @@ func (l *library) listener() string {
 // isLiked reports whether the listener likes tr.
 func (a *app) isLiked(tr *music.Track) bool { return a.trackLib(tr).liked[tr.ID] }
 
+// canLike reports whether tr's source likes it: an episode it may not, though
+// it likes songs.
+func (l *library) canLike(tr *music.Track) bool {
+	if tr.ShowID != "" {
+		return l.can("likeEpisode")
+	}
+	return l.can("like")
+}
+
 // toggleLike likes a song or an episode, or unlikes it, at once in the app
 // and then with its source, which may refuse: the heart goes back then.
 // Signed out, it asks the listener to sign in.
@@ -99,7 +108,7 @@ func (a *app) toggleLike(tr *music.Track) {
 		a.promptSignIn(lib)
 		return
 	}
-	if !lib.can("like") {
+	if !lib.canLike(tr) {
 		return
 	}
 	if lib.liked == nil {
@@ -108,8 +117,12 @@ func (a *app) toggleLike(tr *music.Track) {
 	id, like := tr.ID, !lib.liked[tr.ID]
 	lib.liked[id] = like
 	liked := *tr
+	send := lib.src.Like
+	if tr.ShowID != "" {
+		send = lib.src.LikeEpisode
+	}
 	go func() {
-		err := lib.src.Like(id, like)
+		err := send(id, like)
 		a.post(func() {
 			if err != nil {
 				if lib.liked != nil {
@@ -146,7 +159,7 @@ func (a *app) likeCurrent() {
 		return
 	}
 	lib := a.trackLib(tr)
-	if !lib.can("like") {
+	if !lib.canLike(tr) {
 		return
 	}
 	a.toggleLike(tr)
@@ -165,7 +178,7 @@ func (a *app) likeCurrent() {
 // out; unliking lets it give a little. A source that has no likes shows none.
 func (a *app) likeButton(c *ui.Context, tr *music.Track, size float32, color ui.Color) ui.Element {
 	lib := a.trackLib(tr)
-	if !lib.can("like") {
+	if !lib.canLike(tr) {
 		return ui.Element{}
 	}
 	a.wantLike(tr)
