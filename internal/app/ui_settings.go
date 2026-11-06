@@ -206,7 +206,10 @@ func (a *app) settingsView(c *ui.Context) {
 			if query != "" {
 				title = T("Search Results")
 			}
-			header := ui.Row(c.Key("header")).Absolute().Top(0).Left(0).Right(0).Height(topBar(c)).PaddingX(32).AlignItems(ui.Center).DragWindow()
+			// The + keeps clear of the window buttons where they sit at the
+			// right (Linux, Windows).
+			right := max(32, c.TitleBar().Right+12)
+			header := ui.Row(c.Key("header")).Absolute().Top(0).Left(0).Right(0).Height(topBar(c)).Padding(0, right, 0, 32).AlignItems(ui.Center).DragWindow()
 			header.Children(func() {
 				ui.Text(c, title).FontSize(15).FontWeight(700).SingleLine().Shrink(1).MinWidth(0)
 				if query == "" && current.id == "plugins" {
