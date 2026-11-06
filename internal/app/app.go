@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -68,13 +69,16 @@ type app struct {
 
 	captions  captionState    // the episode playing's captions, and the model they take
 	installer pluginInstaller // installing and updating plugins
+	// links are the app's links opened before its window was made, macOS
+	// handing over the one it was started with first.
+	links []string
 
 	route   route
 	history []route
 	forward []route // the pages gone back from, the last first to go to
 
-	accountOpen bool               // the dropdown of the account row shows
-	signIn      signInDialog       // signing in to a source
+	accountOpen bool         // the dropdown of the account row shows
+	signIn      signInDialog // signing in to a source
 	// signInPages are the windows of plugins' sign-in pages showing, by
 	// plugin. Main thread only.
 	signInPages map[string]*mygo.Window
@@ -361,6 +365,10 @@ func Run() error {
 		// Shown or switched to a while after, it shows what's new.
 		a.win.OnFocus(a.freshenHome)
 		a.applyTray()
+		for _, link := range a.links {
+			a.openLink(link)
+		}
+		a.links = nil
 		if shotHook != nil {
 			shotHook(a)
 		}
@@ -396,5 +404,19 @@ func Run() error {
 	mygo.App.OnWindowAllClosed(func() {})
 	mygo.App.OnActivate(func(bool) { a.showMain() })
 	mygo.App.OnSecondInstance(func([]string, string) { a.showMain() })
+	// The installed app's scheme is registered as it's installed; the
+	// development app, which isn't, registers its own every time it starts.
+	if mygo.IsDev() {
+		if err := mygo.App.RegisterURLScheme(linkScheme); err != nil {
+			log.Printf("registering %s links: %v", linkScheme, err)
+		}
+	}
+	mygo.App.OnOpenURL(func(link string) {
+		if a.win == nil {
+			a.links = append(a.links, link)
+			return
+		}
+		a.openLink(link)
+	})
 	return mygo.App.Run()
 }

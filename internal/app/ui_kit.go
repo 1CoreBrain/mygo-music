@@ -25,6 +25,18 @@ type palette struct {
 	cardShade ui.Color
 }
 
+// useAccent makes the app's accent the theme's, with its hover and press: left
+// alone, those stay MyGo's blue, which primary buttons turned under the pointer.
+// They go darker in light mode; in dark mode hover goes lighter, as MyGo's do.
+func useAccent(t *ui.Theme, p palette) {
+	black, white := ui.Hex("#000000"), ui.Hex("#ffffff")
+	t.Accent, t.AccentText = p.accent, p.onAccent
+	t.AccentHover, t.AccentPressed = p.accent.MixOklab(black, 0.1), p.accent.MixOklab(black, 0.2)
+	if p.dark {
+		t.AccentHover, t.AccentPressed = p.accent.MixOklab(white, 0.15), p.accent.MixOklab(black, 0.15)
+	}
+}
+
 func paletteFor(t *ui.Theme) palette {
 	if t.Dark {
 		return palette{

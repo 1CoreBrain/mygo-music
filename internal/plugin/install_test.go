@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -281,12 +282,18 @@ func TestParseRepo(t *testing.T) {
 		"https://github.com/owner/repo.git": "owner/repo",
 		"github.com/owner/repo/":            "owner/repo",
 		"https://www.github.com/o-1/r_2.x":  "o-1/r_2.x",
+		// Any page of it, as copied from the browser, or its address to clone it.
+		"https://github.com/owner/repo/tree/main/src":      "owner/repo",
+		"https://github.com/owner/repo/releases/tag/v1":    "owner/repo",
+		"https://github.com/owner/repo?tab=readme#install": "owner/repo",
+		"HTTPS://GitHub.com/owner/repo":                    "owner/repo",
+		"git@github.com:owner/repo.git":                    "owner/repo",
 	} {
 		if got, err := ParseRepo(in); err != nil || got != want {
 			t.Errorf("%q: %q, %v", in, got, err)
 		}
 	}
-	for _, in := range []string{"", "owner", "a/b/c", "https://example.com/a/b", "../x", "a/.."} {
+	for _, in := range []string{"", "owner", "a/b/c", "https://example.com/a/b", "https://gitlab.com/a/b", "https://github.com/owner", "../x", "a/.."} {
 		if got, err := ParseRepo(in); err == nil {
 			t.Errorf("%q: read as %q", in, got)
 		}
@@ -427,5 +434,41 @@ func TestInstallFromDiskRefuses(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
 		t.Errorf("left behind %v", entries)
+	}
+}
+
+// Removing a plugin moves its folder to the Trash, or deletes it where that
+// can't be done, its data staying either way.
+func TestRemove(t *testing.T) {
+	for _, trashWorks := range []bool{true, false} {
+		dir := filepath.Join(t.TempDir(), "p")
+		os.MkdirAll(dir, 0o755)
+		os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(`{"id":"p"}`), 0o644)
+		os.WriteFile(filepath.Join(dir, "index.js"), []byte(""), 0o644)
+		data := t.TempDir()
+		p, err := Load(dir, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var trashed string
+		err = p.Remove(func(path string) error {
+			if !trashWorks {
+				return errors.New("no Trash")
+			}
+			trashed = path
+			return os.RemoveAll(path)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(dir); !os.IsNotExist(err) {
+			t.Errorf("trash works %v: the folder is still there", trashWorks)
+		}
+		if trashWorks && trashed != dir {
+			t.Errorf("trashed %q", trashed)
+		}
+		if _, err := os.Stat(data); err != nil {
+			t.Errorf("its data is gone: %v", err)
+		}
 	}
 }

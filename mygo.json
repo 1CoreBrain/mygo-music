@@ -4,6 +4,7 @@
   "slug": "mygo-music",
   "version": "0.1.4",
   "out": "build",
+  "urlSchemes": ["mygo-music"],
   "updates": {
     "publicKey": "WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=",
     "github": "egoist/mygo-music"

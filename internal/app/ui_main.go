@@ -16,7 +16,7 @@ func (a *app) view(c *ui.Context) {
 	t := *c.Theme()
 	a.pal = paletteFor(&t)
 	p := a.pal
-	t.Accent, t.AccentText = p.accent, p.onAccent
+	useAccent(&t, p)
 	t.Selection = p.accent.Alpha(0.3)
 	c.SetTheme(&t)
 

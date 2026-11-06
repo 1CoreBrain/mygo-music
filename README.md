@@ -33,7 +33,7 @@ gh release create sherpa-onnx-2.0.1 --prerelease --latest=false build/sherpa/*
 
 ## Plugins
 
-A plugin is a folder in the app's `plugins` directory (Settings > Plugins > Show Folder) with a `plugin.json` and one JavaScript or TypeScript file. Install one in Settings > Plugins from GitHub, by its repository, or from its folder or a zip of it on this computer, or drop the folder in by hand. There's nothing to build, and the same plugin runs on every platform. [`examples/demo-plugin`](examples/demo-plugin) does everything a plugin can with made-up data: copy it to start.
+A plugin is a folder in the app's `plugins` directory (Settings > Plugins > + > Show Plugins Folder) with a `plugin.json` and one JavaScript or TypeScript file. Install one with the + in Settings > Plugins from GitHub, by its repository or its address, or from its folder or a zip of it on this computer, or drop the folder in by hand. Remove one from its ⋯ menu there. There's nothing to build, and the same plugin runs on every platform. [`examples/demo-plugin`](examples/demo-plugin) does everything a plugin can with made-up data: copy it to start.
 
 ```json
 {
@@ -119,6 +119,8 @@ Throw an error with a `code` to say what's wrong: `signIn` prompts the listener 
 ### Publishing a plugin
 
 Put it in a public GitHub repository, with `plugin.json` at the top. The app takes the latest release: a `.zip` asset named for the platform, such as `plugin-darwin-arm64.zip`, or one named for none, or else the source. Without a release it takes the latest commit of the default branch. A new tag or commit is a new version, which shows as an update in the settings. An update asking for more permissions asks the listener again.
+
+Link to `mygo-music://install-plugin?repo=owner/repo` for an install button: it opens the app, which downloads the plugin and asks the listener before installing it. The development app (`mygo dev`) answers `mygo-music-dev://` instead.
 
 ### What a plugin can reach
 

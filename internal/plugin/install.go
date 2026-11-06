@@ -76,18 +76,44 @@ var (
 )
 
 // ParseRepo reads a repository as the listener may write it: owner/repo, or its
-// address on GitHub.
-func ParseRepo(s string) (string, error) {
-	s = strings.TrimSpace(s)
-	s = strings.TrimPrefix(s, "https://")
-	s = strings.TrimPrefix(s, "http://")
-	s = strings.TrimPrefix(s, "www.")
-	s = strings.TrimPrefix(s, "github.com/")
+// address on GitHub, as copied from the browser on any of its pages, such as
+// github.com/owner/repo/tree/main, or to clone it.
+func ParseRepo(in string) (string, error) {
+	s := strings.TrimSpace(in)
+	if rest, ok := cutPrefixFold(s, "git@github.com:"); ok {
+		s = rest
+	} else {
+		if rest, ok := cutPrefixFold(s, "https://"); ok {
+			s = rest
+		} else if rest, ok := cutPrefixFold(s, "http://"); ok {
+			s = rest
+		}
+		if rest, ok := cutPrefixFold(s, "www."); ok {
+			s = rest
+		}
+		if rest, ok := cutPrefixFold(s, "github.com/"); ok {
+			// A page of the repository's: its first two parts name it.
+			rest, _, _ = strings.Cut(rest, "#")
+			rest, _, _ = strings.Cut(rest, "?")
+			if parts := strings.SplitN(rest, "/", 3); len(parts) == 3 {
+				rest = parts[0] + "/" + parts[1]
+			}
+			s = rest
+		}
+	}
 	s = strings.TrimSuffix(strings.TrimSuffix(s, "/"), ".git")
 	if !repoName.MatchString(s) || strings.Contains(s, "..") {
-		return "", fmt.Errorf("not a GitHub repository: %s", s)
+		return "", fmt.Errorf("not a GitHub repository: %s", strings.TrimSpace(in))
 	}
 	return s, nil
+}
+
+// cutPrefixFold is strings.CutPrefix, ignoring case.
+func cutPrefixFold(s, prefix string) (string, bool) {
+	if len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix) {
+		return s[len(prefix):], true
+	}
+	return s, false
 }
 
 func githubGet(path string, out any) (status int, err error) {
@@ -545,12 +571,19 @@ func (p *Pending) Install(dir string) error {
 	return nil
 }
 
-// Remove deletes a plugin's folder, once it has stopped. Its data stays, for it
-// to find if it's installed again.
-func (p *Plugin) Remove() error {
+// Remove takes a plugin's folder away once it has stopped, with trash, which moves
+// it to the Trash, or deletes it if that can't be done, as on a system with none.
+// Its data stays, for it to find if it's installed again.
+func (p *Plugin) Remove(trash func(path string) error) error {
 	p.Close()
+	if trash != nil && trash(p.dir) == nil {
+		return nil
+	}
 	return os.RemoveAll(p.dir)
 }
+
+// Dir is the plugin's folder.
+func (p *Plugin) Dir() string { return p.dir }
 
 // Origin is where the plugin was installed from, or nil if it was just dropped in.
 func (p *Plugin) Origin() *Origin {

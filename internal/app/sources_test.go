@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"mygo-music/internal/plugin"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -1152,8 +1153,9 @@ func TestTurnPluginOff(t *testing.T) {
 	}
 }
 
-// Something that's no repository asks again, without going to GitHub; a repository
-// goes, and what comes back that's wrong shows, ready to try again.
+// From GitHub… in the plugins' + menu asks for a repository: something that's
+// no repository asks again, without going to GitHub; a repository goes, and what
+// comes back that's wrong shows, ready to try again.
 func TestInstallPluginFromSettings(t *testing.T) {
 	asked := make(chan string, 1)
 	was := fetchPlugin
@@ -1166,6 +1168,13 @@ func TestInstallPluginFromSettings(t *testing.T) {
 	ch := posts(a)
 	a.settingsPage = "plugins"
 	tt := ui.NewTester(a.settingsView, 780, 1000)
+	tt.Frame()
+	if err := tt.Click("Install a Plugin"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("From GitHub…"); err != nil {
+		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+	}
 	tt.Frame()
 
 	a.installer.repo = "not a repo"
@@ -1191,8 +1200,47 @@ func TestInstallPluginFromSettings(t *testing.T) {
 	}
 }
 
-// Picking a plugin's folder copies it in and asks about it, as one from GitHub
-// is asked about, until it's turned down; a zip that's no zip says so.
+// A link to install a plugin shows the plugins' settings and downloads it from
+// the repository it names, to ask about there, installing nothing by itself;
+// links to anything else do nothing.
+func TestInstallPluginFromLink(t *testing.T) {
+	asked := make(chan string, 1)
+	was := fetchPlugin
+	defer func() { fetchPlugin = was }()
+	fetchPlugin = func(repo, dir string) (*plugin.Pending, error) {
+		asked <- repo
+		return &plugin.Pending{Release: plugin.Release{Repo: repo}, Manifest: plugin.Manifest{ID: "linked", Name: "Linked"}}, nil
+	}
+	a := newTestApp()
+	ch := posts(a)
+	libs := len(a.allLibs)
+
+	for _, link := range []string{linkScheme + "://settings", linkScheme + "://install-plugin", "https://example.com/install-plugin?repo=owner/repo"} {
+		a.openLink(link)
+	}
+	if len(asked) != 0 || a.settingsPage == "plugins" {
+		t.Fatalf("acted on a link that isn't to install one: asked %d, on %q", len(asked), a.settingsPage)
+	}
+
+	a.openLink(linkScheme + "://install-plugin?repo=" + url.QueryEscape("https://github.com/owner/repo/tree/main"))
+	if got := wait(t, asked, "the download"); got != "owner/repo" {
+		t.Fatalf("asked for %q", got)
+	}
+	if a.settingsPage != "plugins" {
+		t.Errorf("shows the settings' %q", a.settingsPage)
+	}
+	runPost(t, ch)
+	if !a.installer.open || a.installer.pending == nil || a.installer.pending.Manifest.ID != "linked" {
+		t.Fatalf("asks about %v", a.installer.pending)
+	}
+	if len(a.allLibs) != libs {
+		t.Error("installed it without asking")
+	}
+}
+
+// Picking a plugin's folder from the plugins' + menu copies it in and asks about
+// it, as one from GitHub is asked about, until it's turned down; a zip that's no
+// zip says so.
 func TestInstallPluginFromDisk(t *testing.T) {
 	src := t.TempDir()
 	os.WriteFile(filepath.Join(src, "plugin.json"), []byte(`{"id":"disk","name":"Disk"}`), 0o644)
@@ -1215,9 +1263,16 @@ func TestInstallPluginFromDisk(t *testing.T) {
 	tt := ui.NewTester(a.settingsView, 780, 1000)
 	tt.Frame()
 
-	if err := tt.Click(T("Folder…")); err != nil {
-		t.Fatal(err)
+	choose := func(item string) {
+		t.Helper()
+		if err := tt.Click("Install a Plugin"); err != nil {
+			t.Fatal(err)
+		}
+		if err := tt.ChooseMenuItem(item); err != nil {
+			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+		}
 	}
+	choose("From a Folder…")
 	runPost(t, ch)
 	tt.Frame()
 	if a.installer.pending == nil || a.installer.err != "" {
@@ -1226,17 +1281,69 @@ func TestInstallPluginFromDisk(t *testing.T) {
 	if err := tt.Click(T("Cancel")); err != nil {
 		t.Fatal(err)
 	}
+	tt.Frame()
 	if a.installer.pending != nil {
 		t.Error("still asks about it")
 	}
 
-	tt.Frame()
-	if err := tt.Click(T("Zip…")); err != nil {
-		t.Fatal(err)
-	}
+	settled(tt)
+	choose("From a Zip…")
 	runPost(t, ch)
 	if a.installer.pending != nil || a.installer.err == "" || a.installer.busy {
 		t.Errorf("pending %v, busy %v, says %q", a.installer.pending, a.installer.busy, a.installer.err)
+	}
+}
+
+// Any plugin can be removed from its menu in the plugins' settings, from this
+// computer too, once the listener says so: it's gone from the sources and its
+// folder goes to the Trash. Saying no leaves it.
+func TestRemovePluginFromSettings(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "disk")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(`{"id":"disk","name":"Disk"}`), 0o644)
+	os.WriteFile(filepath.Join(dir, "index.js"), []byte(""), 0o644)
+	p, err := plugin.Load(dir, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	trashed := make(chan string, 1)
+	answer := false
+	wasConfirm, wasTrash := confirmRemovePlugin, trashItem
+	defer func() { confirmRemovePlugin, trashItem = wasConfirm, wasTrash }()
+	confirmRemovePlugin = func(a *app, name string, yes func()) {
+		if answer {
+			yes()
+		}
+	}
+	trashItem = func(path string) error { trashed <- path; return nil }
+	a := newTestApp()
+	lib := addFake(a, p)
+	a.plugins = append(a.plugins, p)
+	a.settingsPage = "plugins"
+	tt := ui.NewTester(a.settingsView, 780, 1400)
+	tt.Frame()
+
+	remove := func() {
+		t.Helper()
+		if err := tt.Click("More for Disk"); err != nil {
+			t.Fatal(err)
+		}
+		if err := tt.ChooseMenuItem("Remove…"); err != nil {
+			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+		}
+		tt.Frame()
+	}
+	remove()
+	if !slices.Contains(a.allLibs, lib) {
+		t.Fatal("removed though the listener said no")
+	}
+	answer = true
+	remove()
+	if slices.Contains(a.allLibs, lib) || slices.Contains(a.libs, lib) || slices.Contains(a.plugins, p) {
+		t.Error("still a source")
+	}
+	if got := wait(t, trashed, "the folder going to the Trash"); got != dir {
+		t.Errorf("trashed %q", got)
 	}
 }
 

@@ -139,7 +139,7 @@ func settingsMatch(query string, texts ...string) bool {
 func (a *app) settingsView(c *ui.Context) {
 	t := *c.Theme()
 	p := paletteFor(&t)
-	t.Accent, t.AccentText = p.accent, p.onAccent
+	useAccent(&t, p)
 	c.SetTheme(&t)
 	c.Root().Background(p.bg)
 	c.OnShortcut(ui.Cmd, ui.KeyW, func() { a.settingsWin.Close() })
@@ -201,11 +201,16 @@ func (a *app) settingsView(c *ui.Context) {
 			header := ui.Row(c.Key("header")).Absolute().Top(0).Left(0).Right(0).Height(topBar(c)).PaddingX(32).AlignItems(ui.Center).DragWindow()
 			header.Children(func() {
 				ui.Text(c, title).FontSize(15).FontWeight(700).SingleLine().Shrink(1).MinWidth(0)
+				if query == "" && current.id == "plugins" {
+					ui.Box(c).Grow(1)
+					a.installMenu(c, p)
+				}
 			})
 			// The pointer over it brings the edge up too, as AppKit's does.
 			edge.Opacity(edgeShown(edge, a.settingsUnderTop || header.Hovered()))
 		})
 	})
+	a.installDialog(c, p)
 }
 
 // settingsSidebarWidth is the width of the list of the settings' pages.
@@ -503,12 +508,6 @@ func (a *app) sourceSettings(c *ui.Context, row settingsRow, block settingsBlock
 		}
 		block(text, func() { a.pluginSettings(c.Key(lib.id), lib, p) })
 	}
-	a.installSettings(c, row, block, p)
-	row(T("Plugins Folder"), Tf("Drop plugins in %s and open the app again. A plugin reaches only what it asks for, and starts programs only if you allow it.", pluginsDir()), func() {
-		if ui.Button(c.Key("reveal-plugins"), T("Show Folder")).Clicked() {
-			revealFolder(pluginsDir())
-		}
-	})
 }
 
 // revealFolder shows a folder in the file manager, making it if need be;
@@ -571,14 +570,23 @@ func (a *app) pluginSettings(c *ui.Context, lib *library, p palette) {
 					name += " " + info.Version
 				}
 				ui.Text(c, name).FontSize(13.5).FontWeight(500)
-				switch {
-				case !enabled:
-				case lib.needsSetup:
-					ui.Text(c, T("Fill these in for it to work")).FontSize(12).TextColor(p.accent).LineHeight(1.4)
-				case lib.account != nil:
-					ui.Text(c, Tf("Signed in as %s", lib.account.Name)).FontSize(12).TextColor(p.muted)
+				// Where it came from, and who's signed in, on one line.
+				var about []string
+				if from := pluginFrom(lib); from != "" {
+					about = append(about, from)
 				}
+				if enabled && !lib.needsSetup && lib.account != nil {
+					about = append(about, Tf("Signed in as %s", lib.account.Name))
+				}
+				if len(about) > 0 {
+					ui.Text(c, strings.Join(about, " · ")).FontSize(12).TextColor(p.muted).SingleLine()
+				}
+				if enabled && lib.needsSetup {
+					ui.Text(c, T("Fill these in for it to work")).FontSize(12).TextColor(p.accent).LineHeight(1.4)
+				}
+				a.pluginUpdateError(c, lib, p)
 			})
+			a.pluginUpdateButton(c, lib)
 			switch {
 			case !enabled:
 			case lib.account != nil && lib.can("signOut"):
@@ -593,9 +601,9 @@ func (a *app) pluginSettings(c *ui.Context, lib *library, p palette) {
 					}
 				}
 			}
+			a.pluginMenu(c, lib, p)
 			a.pluginSwitch(c, lib)
 		})
-		a.pluginOriginRow(c, lib, p)
 		if !enabled {
 			return
 		}
