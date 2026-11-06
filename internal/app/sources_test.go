@@ -1459,6 +1459,61 @@ func TestCheckPluginUpdateNow(t *testing.T) {
 	settled(tt)
 }
 
+// Updating a plugin installs the version its check found without asking GitHub
+// what's there again, as each ask counts against its limit; once the app has
+// opened again and it's forgotten what was found, it asks.
+func TestUpdatePluginReusesCheck(t *testing.T) {
+	asked := 0
+	wasLatest, wasFetch, wasRelease := latestPlugin, fetchPlugin, fetchRelease
+	defer func() { latestPlugin, fetchPlugin, fetchRelease = wasLatest, wasFetch, wasRelease }()
+	latestPlugin = func(repo string) (*plugin.Release, error) {
+		asked++
+		return &plugin.Release{Repo: repo, Version: "v0.2.0"}, nil
+	}
+	fetched := make(chan string, 1)
+	fetchRelease = func(rel *plugin.Release, dir string) (*plugin.Pending, error) {
+		fetched <- "release " + rel.Version
+		return nil, errors.New("offline")
+	}
+	fetchPlugin = func(repo, dir string) (*plugin.Pending, error) {
+		fetched <- "latest of " + repo
+		return nil, errors.New("offline")
+	}
+	a := newTestApp()
+	ch := posts(a)
+	addFake(a, githubPlugin(t))
+	a.settingsPage = "plugins"
+	tt := ui.NewTester(a.settingsView, 780, 1000)
+	tt.Frame()
+	if err := tt.Click("More for GH"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Check for Updates"); err != nil {
+		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+	}
+	runPost(t, ch)
+	tt.Frame()
+
+	update := func() string {
+		t.Helper()
+		if err := tt.Click("Update to v0.2.0"); err != nil {
+			t.Fatalf("%v; shows %q", err, tt.Texts())
+		}
+		got := wait(t, fetched, "the download")
+		runPost(t, ch)
+		tt.Frame()
+		return got
+	}
+	if got := update(); got != "release v0.2.0" || asked != 1 {
+		t.Errorf("updating fetched the %s, asking GitHub %d times", got, asked)
+	}
+	a.installer.found = nil
+	if got := update(); got != "latest of o/gh" {
+		t.Errorf("after opening again, updating fetched the %s", got)
+	}
+	settled(tt)
+}
+
 // githubPlugin is a plugin installed from o/gh at v0.1.0.
 func githubPlugin(t *testing.T) *plugin.Plugin {
 	t.Helper()

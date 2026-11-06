@@ -219,26 +219,21 @@ p {
   position: sticky;
   top: 0;
   z-index: 50;
+  box-shadow: 0 1px 0 transparent;
+  transition:
+    background-color 0.3s,
+    backdrop-filter 0.3s,
+    -webkit-backdrop-filter 0.3s,
+    box-shadow 0.3s;
 }
-/* The frosted backing lives on its own layer so it can fade in (a
-   backdrop-filter can't transition) and so the nav doesn't become the
-   backdrop root of the language menu, whose own blur would then miss the
-   page behind it. */
-.nav::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: light-dark(rgb(251 247 241 / 0.72), rgb(20 18 20 / 0.66));
-  backdrop-filter: saturate(1.8) blur(20px);
-  -webkit-backdrop-filter: saturate(1.8) blur(20px);
+/* The frosted backing goes on the nav itself, not a layer inside it:
+   Firefox blurs only what's in the parent stacking context, and the sticky
+   nav is one, so a layer inside had nothing behind it to blur. */
+.nav.scrolled {
+  background-color: light-dark(rgb(251 247 241 / 0.55), rgb(20 18 20 / 0.5));
+  backdrop-filter: saturate(1.8) blur(24px);
+  -webkit-backdrop-filter: saturate(1.8) blur(24px);
   box-shadow: 0 1px 0 var(--line);
-  opacity: 0;
-  transition: opacity 0.3s;
-  pointer-events: none;
-}
-.nav.scrolled::before {
-  opacity: 1;
 }
 .nav-inner {
   max-width: 1160px;
@@ -1214,7 +1209,9 @@ main {
   min-width: 176px;
   padding: 5px;
   border-radius: 14px;
-  background: light-dark(rgb(255 255 255 / 0.9), rgb(38 34 38 / 0.9));
+  /* Nearly opaque: once the nav is frosted it's this menu's backdrop root,
+     so the menu's own blur can't reach the page below the nav. */
+  background: light-dark(rgb(255 255 255 / 0.96), rgb(38 34 38 / 0.96));
   backdrop-filter: saturate(1.6) blur(20px);
   -webkit-backdrop-filter: saturate(1.6) blur(20px);
   box-shadow:

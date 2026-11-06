@@ -36,6 +36,7 @@ var linkScheme = func() string {
 // These reach GitHub, and the disk; tests replace them.
 var (
 	fetchPlugin  = plugin.Fetch
+	fetchRelease = plugin.FetchRelease
 	latestPlugin = plugin.Latest
 	openPlugin   = plugin.Open
 )
@@ -96,6 +97,9 @@ type pluginInstaller struct {
 	// checked is what checking a plugin for a new version came to, when the
 	// listener asked, by ID.
 	checked map[string]checkResult
+	// found is the new version checking found of a plugin, by ID, for updating
+	// to install without asking GitHub again; after the app opens again, it asks.
+	found map[string]*plugin.Release
 }
 
 // checkResult is what checking a plugin for a new version came to.
@@ -252,6 +256,7 @@ func (a *app) pluginInstalled(id string) error {
 	delete(a.settings.PluginUpdates, id)
 	a.settings.save()
 	delete(in.updating, id)
+	delete(in.found, id)
 	p, err := plugin.Load(filepath.Join(pluginsDir(), id), userDataDir("plugin-data"))
 	if err != nil {
 		return err
@@ -297,6 +302,7 @@ func (a *app) removePlugin(lib *library) {
 		a.switchSource(a.libs[0].id)
 	}
 	delete(a.settings.PluginUpdates, lib.id)
+	delete(a.installer.found, lib.id)
 	a.settings.save()
 	go func() {
 		if err := p.Remove(trashItem); err != nil {
@@ -334,7 +340,7 @@ func (a *app) checkPluginUpdates() {
 	a.settings.PluginsChecked = time.Now()
 	a.settings.save()
 	go func() {
-		found := map[string]string{}
+		found, releases := map[string]string{}, map[string]*plugin.Release{}
 		for id, o := range origins {
 			rel, err := latestPlugin(o.Repo)
 			if err != nil {
@@ -342,11 +348,12 @@ func (a *app) checkPluginUpdates() {
 				continue
 			}
 			if plugin.IsNewer(rel.Version, o.Version) {
-				found[id] = rel.Version
+				found[id], releases[id] = rel.Version, rel
 			}
 		}
 		a.post(func() {
 			a.settings.PluginUpdates = found
+			a.installer.found = releases
 			a.settings.save()
 			a.redraw()
 		})
@@ -384,10 +391,15 @@ func (a *app) checkPluginUpdate(lib *library) {
 					a.settings.PluginUpdates = map[string]string{}
 				}
 				a.settings.PluginUpdates[id] = rel.Version
+				if in.found == nil {
+					in.found = map[string]*plugin.Release{}
+				}
+				in.found[id] = rel
 				a.settings.save()
 			default:
 				in.checked[id] = upToDate
 				delete(a.settings.PluginUpdates, id)
+				delete(in.found, id)
 				a.settings.save()
 			}
 			a.redraw()
@@ -417,8 +429,20 @@ func (a *app) updatePlugin(lib *library) {
 	delete(in.updateErr, lib.id)
 	id := lib.id
 	had := p.Permissions()
+	// The version the check found, which the Update button names, rather than
+	// asking GitHub again for what's there.
+	rel := in.found[id]
+	if rel != nil && rel.Version != a.settings.PluginUpdates[id] {
+		rel = nil
+	}
 	go func() {
-		pending, err := fetchPlugin(o.Repo, pluginsDir())
+		var pending *plugin.Pending
+		var err error
+		if rel != nil {
+			pending, err = fetchRelease(rel, pluginsDir())
+		} else {
+			pending, err = fetchPlugin(o.Repo, pluginsDir())
+		}
 		if err == nil && asksForMore(had, pending.Manifest.Permissions) {
 			a.post(func() {
 				delete(in.updating, id)
