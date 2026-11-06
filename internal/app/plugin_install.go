@@ -24,8 +24,8 @@ import (
 // the + menu of their header is asked about. Nothing installs without the
 // listener allowing it.
 
-// linkScheme is the scheme of the app's links, declared in mygo.json, or the
-// development app's, which leaves the installed app's links to it.
+// linkScheme is the scheme of the app's links, declared in mygo.config.ts: the
+// development app's is its own, which leaves the installed app's links to it.
 var linkScheme = func() string {
 	if mygo.IsDev() {
 		return "mygo-music-dev"

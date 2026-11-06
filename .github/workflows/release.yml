@@ -3,7 +3,7 @@
 # release of the tag, which is published by hand: installed apps update
 # to it then. Running the workflow by hand, from the Actions tab or with
 # `gh workflow run release.yml`, does the same for the version in
-# mygo.json of the branch it runs on, tagging that commit when the tag
+# mygo.config.ts of the branch it runs on, tagging that commit when the tag
 # isn't there yet, and building the tag when it is.
 name: Release
 
@@ -22,16 +22,18 @@ jobs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
-      # mygo build uploads to the release of mygo.json's version, so that's
-      # the tag. A tag pushed by the workflow's own token starts no other
-      # run.
+      # mygo.config.ts is code, which Bun runs.
+      - uses: oven-sh/setup-bun@v2
+      # mygo build uploads to the release of mygo.config.ts's version, so
+      # that's the tag. A tag pushed by the workflow's own token starts no
+      # other run.
       - name: Find the tag
         id: tag
         run: |
-          tag="v$(jq -r .version mygo.json)"
+          tag="v$(bun -e 'console.log((await import("./mygo.config.ts")).default({ command: "build" }).version)')"
           if [ "$GITHUB_EVENT_NAME" = push ]; then
             if [ "$GITHUB_REF_NAME" != "$tag" ]; then
-              echo "::error::$GITHUB_REF_NAME doesn't match the version of mygo.json, $tag"
+              echo "::error::$GITHUB_REF_NAME doesn't match the version of mygo.config.ts, $tag"
               exit 1
             fi
           elif [ -z "$(git ls-remote --tags origin "refs/tags/$tag")" ]; then
@@ -64,6 +66,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: refs/tags/${{ needs.draft-release.outputs.tag }}
+      # mygo build evaluates mygo.config.ts with Bun.
+      - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -89,7 +93,7 @@ jobs:
         if: matrix.name == 'Windows'
         run: sudo apt-get update && sudo apt-get install -y nsis
       # The certificate signs the app; the notary profile, "notary" in
-      # mygo.json, notarizes its disk image. Both go in a keychain of the
+      # mygo.config.ts, notarizes its disk image. Both go in a keychain of the
       # job, made the default one, where codesign and notarytool look.
       - name: Import the certificate and the notary credentials
         if: matrix.name == 'macOS'
