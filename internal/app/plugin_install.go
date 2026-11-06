@@ -93,7 +93,19 @@ type pluginInstaller struct {
 	pending      *plugin.Pending // one downloaded, for the listener to allow
 	updating     map[string]bool
 	updateErr    map[string]string // what went wrong updating a plugin, by ID
+	// checked is what checking a plugin for a new version came to, when the
+	// listener asked, by ID.
+	checked map[string]checkResult
 }
+
+// checkResult is what checking a plugin for a new version came to.
+type checkResult int
+
+const (
+	checking checkResult = iota + 1
+	upToDate
+	checkFailed
+)
 
 // askForRepo opens the dialog that asks for a repository to install from.
 func (a *app) askForRepo() {
@@ -341,6 +353,48 @@ func (a *app) checkPluginUpdates() {
 	}()
 }
 
+// checkPluginUpdate checks one plugin for a new version now, as the listener
+// asks from its menu, whenever the daily check was. A new one shows its Update
+// button; none, or none to be had, is said in its row.
+func (a *app) checkPluginUpdate(lib *library) {
+	p := pluginOf(lib)
+	if p == nil || p.Origin() == nil {
+		return
+	}
+	in := &a.installer
+	if in.checked == nil {
+		in.checked = map[string]checkResult{}
+	}
+	id, o := lib.id, *p.Origin()
+	if in.checked[id] == checking {
+		return
+	}
+	in.checked[id] = checking
+	delete(in.updateErr, id)
+	go func() {
+		rel, err := latestPlugin(o.Repo)
+		a.post(func() {
+			switch {
+			case err != nil:
+				log.Printf("checking plugin %s: %v", id, err)
+				in.checked[id] = checkFailed
+			case plugin.IsNewer(rel.Version, o.Version):
+				delete(in.checked, id)
+				if a.settings.PluginUpdates == nil {
+					a.settings.PluginUpdates = map[string]string{}
+				}
+				a.settings.PluginUpdates[id] = rel.Version
+				a.settings.save()
+			default:
+				in.checked[id] = upToDate
+				delete(a.settings.PluginUpdates, id)
+				a.settings.save()
+			}
+			a.redraw()
+		})
+	}()
+}
+
 // updatePlugin installs the new version of a plugin. One that asks for more than
 // the listener allowed asks them again, first.
 func (a *app) updatePlugin(lib *library) {
@@ -482,7 +536,7 @@ func (a *app) installDialog(c *ui.Context, p palette) {
 				ui.Text(c, T("Asks for no network")).FontSize(13).TextColor(p.muted)
 			}
 			if len(perms.Process) > 0 {
-				ui.Text(c, programsWarning(perms.Process)).FontSize(13).TextColor(p.accent).LineHeight(1.45)
+				ui.Text(c, programsWarning(perms.Process)).FontSize(13).TextColor(p.muted).LineHeight(1.45)
 			}
 			problem()
 			buttons(T("Install"), in.busy, Tf("Install %s", pending.Manifest.Name), a.confirmInstall)
@@ -512,17 +566,18 @@ func (a *app) installDialog(c *ui.Context, p palette) {
 	})
 }
 
-// pluginFrom says where a plugin came from: its repository, or this computer, as
-// one installed from a folder or dropped in.
-func pluginFrom(lib *library) string {
+// pluginFrom says where a plugin came from: its repository, with its address
+// on GitHub, or this computer, as one installed from a folder or dropped in,
+// with none.
+func pluginFrom(lib *library) (from, url string) {
 	plug := pluginOf(lib)
 	if plug == nil {
-		return ""
+		return "", ""
 	}
 	if o := plug.Origin(); o != nil {
-		return o.Repo
+		return o.Repo, "https://github.com/" + o.Repo
 	}
-	return T("From this computer")
+	return T("From this computer"), ""
 }
 
 // pluginUpdateButton installs the new version of a plugin from GitHub, when
@@ -547,10 +602,20 @@ func (a *app) pluginUpdateButton(c *ui.Context, lib *library) {
 	}
 }
 
-// pluginUpdateError says what went wrong updating a plugin, if anything did.
+// pluginUpdateError says what went wrong updating a plugin, if anything did,
+// or what checking it for a new version came to.
 func (a *app) pluginUpdateError(c *ui.Context, lib *library, p palette) {
 	if msg := a.installer.updateErr[lib.id]; msg != "" {
 		ui.Text(c, msg).FontSize(12).TextColor(p.accent).LineHeight(1.4)
+		return
+	}
+	switch a.installer.checked[lib.id] {
+	case checking:
+		ui.Text(c, T("Checking for updates…")).FontSize(12).TextColor(p.muted)
+	case upToDate:
+		ui.Text(c, T("Up to date")).FontSize(12).TextColor(p.muted)
+	case checkFailed:
+		ui.Text(c, T("Couldn't check for updates")).FontSize(12).TextColor(p.accent)
 	}
 }
 
@@ -563,6 +628,12 @@ func (a *app) pluginMenu(c *ui.Context, lib *library, p palette) {
 	}
 	more := iconButton(c.Key("plugin-more"), iconMore, 16, p.muted, Tf("More for %s", lib.name()))
 	more.Menu(func(m *ui.Menu) {
+		if plug.Origin() != nil {
+			busy := a.installer.checked[lib.id] == checking || a.installer.updating[lib.id]
+			if m.Item(T("Check for Updates")).Disabled(busy).Chosen() {
+				a.checkPluginUpdate(lib)
+			}
+		}
 		if m.Item(T("Show Folder")).Chosen() {
 			revealFolder(plug.Dir())
 		}

@@ -579,16 +579,27 @@ func (a *app) pluginSettings(c *ui.Context, lib *library, p palette) {
 					name += " " + info.Version
 				}
 				ui.Text(c, name).FontSize(13.5).FontWeight(500)
-				// Where it came from, and who's signed in, on one line.
-				var about []string
-				if from := pluginFrom(lib); from != "" {
-					about = append(about, from)
-				}
+				// Where it came from, a link to its repository, and who's signed
+				// in, on one line.
+				from, url := pluginFrom(lib)
+				signedIn := ""
 				if enabled && !lib.needsSetup && lib.account != nil {
-					about = append(about, Tf("Signed in as %s", lib.account.Name))
+					signedIn = Tf("Signed in as %s", lib.account.Name)
 				}
-				if len(about) > 0 {
-					ui.Text(c, strings.Join(about, " · ")).FontSize(12).TextColor(p.muted).SingleLine()
+				if from != "" || signedIn != "" {
+					ui.Row(c).MinWidth(0).Children(func() {
+						if url != "" {
+							ui.Link(c, from, url).FontSize(12).TextColor(p.muted).SingleLine().Shrink(0).Tooltip(T("Open on GitHub"))
+						} else if from != "" {
+							ui.Text(c, from).FontSize(12).TextColor(p.muted).SingleLine().Shrink(0)
+						}
+						if signedIn != "" {
+							if from != "" {
+								signedIn = " · " + signedIn
+							}
+							ui.Text(c, signedIn).FontSize(12).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
+						}
+					})
 				}
 				if enabled && lib.needsSetup {
 					ui.Text(c, T("Fill these in for it to work")).FontSize(12).TextColor(p.accent).LineHeight(1.4)
@@ -662,7 +673,7 @@ func (a *app) pluginPermissions(c *ui.Context, lib *library, g guarded, p palett
 	granted := g.Granted()
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, programsWarning(perms.Process)).
-			FontSize(12).TextColor(p.accent).LineHeight(1.4).Grow(1).Shrink(1).MinWidth(0)
+			FontSize(12).TextColor(p.muted).LineHeight(1.4).Grow(1).Shrink(1).MinWidth(0)
 		label := T("Allow Programs")
 		if granted {
 			label = T("Stop Allowing")
