@@ -2,6 +2,13 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.6] - 2026-11-06
+
+### Fixed
+
+- Signing in from Settings opens the sign-in dialog, and a plugin's sign-in page, over the Settings window instead of behind it, over the main window.
+- Settings no longer offers Sign In for a plugin you haven't switched to yet that's already signed in.
+
 ## [0.1.5] - 2026-11-06
 
 ### Added
@@ -65,6 +72,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.6]: https://github.com/egoist/mygo-music/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/egoist/mygo-music/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/egoist/mygo-music/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/egoist/mygo-music/compare/v0.1.2...v0.1.3
