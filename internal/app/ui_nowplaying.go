@@ -548,15 +548,19 @@ func (a *app) stageBar(c *ui.Context, tr *music.Track, art *artwork, accent ui.C
 					in := artIn(cov, bmp)
 					cov.Children(func() { artImage(c, bmp, a.npRadius(c, 8, 44), in) })
 				}
-				ui.Column(c).Shrink(1).MinWidth(0).Gap(2).Children(func() {
-					ui.Text(c, tr.Name).FontSize(14).FontWeight(700).SingleLine()
-					a.artistLinks(c, tr, white.Alpha(0.55), white).FontSize(12).SingleLine()
+				// All but the cover, which flies to the bar's, fade as the
+				// rest of Now Playing does.
+				a.npRise(ui.Row(c).Shrink(1).MinWidth(0).Gap(12).AlignItems(ui.Center), 3).Children(func() {
+					ui.Column(c).Shrink(1).MinWidth(0).Gap(2).Children(func() {
+						ui.Text(c, tr.Name).FontSize(14).FontWeight(700).SingleLine()
+						a.artistLinks(c, tr, white.Alpha(0.55), white).FontSize(12).SingleLine()
+					})
+					a.likeButton(c.Key("like"), tr, 17, white.Alpha(0.6))
+					a.songMenu(c.Key("more"), tr, 17, white.Alpha(0.6)).Margin(0, 0, 0, -10)
 				})
-				a.likeButton(c.Key("like"), tr, 17, white.Alpha(0.6))
-				a.songMenu(c.Key("more"), tr, 17, white.Alpha(0.6)).Margin(0, 0, 0, -10)
 			})
-			a.transport(c, white, white.Alpha(0.45), white, 22)
-			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Justify(ui.End).Children(func() {
+			a.npRise(ui.Row(c), 3).Children(func() { a.transport(c, white, white.Alpha(0.45), white, 22) })
+			a.npRise(ui.Row(c).Grow(1).Basis(0).MinWidth(0).Justify(ui.End), 4).Children(func() {
 				ui.Text(c, clock(pl.Position())+" / "+clock(pl.Duration())).FontSize(11.5).FontFeatures("tnum").TextColor(white.Alpha(0.5))
 			})
 		})
