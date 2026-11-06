@@ -3,7 +3,7 @@
 //
 //	{
 //	  "id": "example", "name": "Example", "main": "index.js", "playback": "stream",
-//	  "permissions": {"network": ["api.example.com"], "process": false}
+//	  "permissions": {"network": ["api.example.com"], "process": ["bin/helper-*", "ffmpeg"]}
 //	}
 //
 // and one module that exports a function for each thing it does, by the names
@@ -15,7 +15,8 @@
 // A plugin reaches nothing but the JavaScript standard library, timers and the
 // host global, unless it asks: fetch reaches the hosts its network permission
 // names, and host.spawn, for those with the process permission that the
-// listener granted, starts programs, which can do anything the listener can.
+// listener granted, starts the programs it names, which can do anything the
+// listener can.
 package plugin
 
 import (
@@ -26,6 +27,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -53,8 +56,68 @@ type Permissions struct {
 	// Network lists the hosts fetch can reach, *.example.com for those below
 	// it, and * for any.
 	Network []string `json:"network,omitempty"`
-	// Process lets it start programs, once the listener granted it.
-	Process bool `json:"process,omitempty"`
+	// Process lists the programs it may start, once the listener granted it.
+	Process Programs `json:"process,omitempty"`
+}
+
+// Programs are what a plugin may start: each a path from its directory or
+// absolute, such as bin/helper-*, or a name looked up on PATH, such as ffmpeg,
+// and * for any. A pattern matches as filepath.Match does, so * doesn't cross
+// a directory. true is short for any, from before programs were named.
+type Programs []string
+
+func (ps *Programs) UnmarshalJSON(b []byte) error {
+	var all bool
+	if err := json.Unmarshal(b, &all); err == nil {
+		*ps = nil
+		if all {
+			*ps = Programs{"*"}
+		}
+		return nil
+	}
+	var names []string
+	if err := json.Unmarshal(b, &names); err != nil {
+		return errors.New("process is a list of programs, or true for any")
+	}
+	*ps = names
+	return nil
+}
+
+// Any reports whether it may start any program.
+func (ps Programs) Any() bool { return slices.Contains(ps, "*") }
+
+// Allows reports whether command, as host.spawn has it after resolving a path
+// from dir, is one of the programs. A path only matches a path, and a name a
+// name, so a program that's somewhere else, but called the same, isn't one.
+func (ps Programs) Allows(dir, command string) bool {
+	bare := !strings.ContainsAny(command, `/\`)
+	if !bare {
+		command = filepath.Clean(command)
+	}
+	for _, pattern := range ps {
+		if pattern == "*" {
+			return true
+		}
+		pattern = filepath.FromSlash(pattern)
+		if strings.ContainsAny(pattern, `/\`) != !bare {
+			continue
+		}
+		if !bare && !filepath.IsAbs(pattern) {
+			pattern = filepath.Join(dir, pattern)
+		}
+		name := command
+		if runtime.GOOS == "windows" {
+			// Names and paths there are any case, and a program needn't say .exe.
+			pattern, name = strings.ToLower(pattern), strings.ToLower(name)
+			if bare && filepath.Ext(pattern) == "" {
+				name = strings.TrimSuffix(name, ".exe")
+			}
+		}
+		if ok, _ := filepath.Match(pattern, name); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // Manifest is a plugin's plugin.json.
@@ -189,7 +252,7 @@ func Discover(dir, dataDir string) []*Plugin {
 // Permissions are what plugin.json asks for.
 func (p *Plugin) Permissions() Permissions { return p.manifest.Permissions }
 
-// Granted reports whether the listener let the plugin start programs.
+// Granted reports whether the listener let the plugin start its programs.
 func (p *Plugin) Granted() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -320,7 +383,7 @@ func (p *Plugin) start() (*vm, error) {
 // how it talks to them. The caller holds p.mu.
 func (p *Plugin) webOptions() webapi.Options {
 	hosts := append([]string(nil), p.manifest.Permissions.Network...)
-	if p.manifest.Permissions.Process && p.granted {
+	if len(p.manifest.Permissions.Process) > 0 && p.granted {
 		hosts = append(hosts, "127.0.0.1", "localhost")
 	}
 	if len(hosts) == 0 {

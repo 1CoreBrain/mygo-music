@@ -387,11 +387,16 @@ func (a *app) updatePlugin(lib *library) {
 
 // asksForMore reports whether a new version asks for anything the old didn't.
 func asksForMore(had, wants plugin.Permissions) bool {
-	if wants.Process && !had.Process {
-		return true
+	return more(had.Process, wants.Process) || more(had.Network, wants.Network)
+}
+
+// more reports whether wants has something had doesn't, which * has all of.
+func more(had, wants []string) bool {
+	if slices.Contains(had, "*") {
+		return false
 	}
-	for _, host := range wants.Network {
-		if !slices.Contains(had.Network, host) && !slices.Contains(had.Network, "*") {
+	for _, w := range wants {
+		if !slices.Contains(had, w) {
 			return true
 		}
 	}
@@ -473,9 +478,8 @@ func (a *app) installDialog(c *ui.Context, p palette) {
 			default:
 				ui.Text(c, T("Asks for no network")).FontSize(13).TextColor(p.muted)
 			}
-			if perms.Process {
-				ui.Text(c, T("This plugin wants to start programs, which can do anything you can. Only allow it if you trust it.")).
-					FontSize(13).TextColor(p.accent).LineHeight(1.45)
+			if len(perms.Process) > 0 {
+				ui.Text(c, programsWarning(perms.Process)).FontSize(13).TextColor(p.accent).LineHeight(1.45)
 			}
 			problem()
 			buttons(T("Install"), in.busy, Tf("Install %s", pending.Manifest.Name), a.confirmInstall)

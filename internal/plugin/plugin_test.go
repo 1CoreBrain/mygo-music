@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/aes"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -235,6 +236,73 @@ func TestSpawnNeedsPermissionAndGrant(t *testing.T) {
 	}
 	if strings.Join(got, ",") != "echo:hi,null,0" {
 		t.Errorf("got %v", got)
+	}
+}
+
+// A plugin starts only the programs its process permission names, even once
+// the listener allowed it.
+func TestSpawnOnlyNamedPrograms(t *testing.T) {
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(echoEnv, "1")
+	named, err := json.Marshal(map[string]any{"id": "x", "permissions": map[string]any{"process": []string{self}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := load(t, string(named), spawnSource)
+	p.Grant(true)
+	p.SetSetting("program", self)
+	if got, err := p.Suggest("hi"); err != nil || got[0] != "echo:hi" {
+		t.Fatalf("the program it names: %v, %v", got, err)
+	}
+	other := load(t, `{"id":"x","permissions":{"process":["ffmpeg"]}}`, spawnSource)
+	other.Grant(true)
+	other.SetSetting("program", self)
+	if _, err := other.Suggest("hi"); err == nil || !strings.Contains(err.Error(), "isn't one of the programs") {
+		t.Errorf("a program it doesn't name: %v", err)
+	}
+}
+
+// A path matches a path from the plugin's directory and a name a name, so
+// neither stands in for the other, nor a way out of the directory for a path
+// in it.
+func TestProgramsAllows(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "plugin")
+	ps := Programs{"bin/helper-*", "ffmpeg"}
+	for _, c := range []struct {
+		command string
+		ok      bool
+	}{
+		{filepath.Join(dir, "bin", "helper-darwin-arm64"), true},
+		{filepath.Join(dir, "bin", "other"), false},
+		{filepath.Join(dir, "bin", "..", "..", "bin", "helper-x"), false},
+		{filepath.Join(dir, "bin", "sub", "helper-x"), false},
+		{"ffmpeg", true},
+		{"ffprobe", false},
+		{"helper-x", false},
+		{filepath.Join(dir, "ffmpeg"), false},
+	} {
+		if got := ps.Allows(dir, c.command); got != c.ok {
+			t.Errorf("%s: %v", c.command, got)
+		}
+	}
+	if !(Programs{"*"}).Allows(dir, "anything") {
+		t.Error("* didn't allow any")
+	}
+}
+
+// "process": true, from before programs were named, still means any; false,
+// none.
+func TestProcessTrueMeansAny(t *testing.T) {
+	var m Manifest
+	if err := json.Unmarshal([]byte(`{"permissions":{"process":true}}`), &m); err != nil || !m.Permissions.Process.Any() {
+		t.Errorf("true: %v, %v", m.Permissions.Process, err)
+	}
+	m = Manifest{}
+	if err := json.Unmarshal([]byte(`{"permissions":{"process":false}}`), &m); err != nil || len(m.Permissions.Process) != 0 {
+		t.Errorf("false: %v, %v", m.Permissions.Process, err)
 	}
 }
 

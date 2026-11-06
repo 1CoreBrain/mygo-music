@@ -937,7 +937,7 @@ func TestSettingsAllowPrograms(t *testing.T) {
 	a := newTestApp()
 	ch := posts(a)
 	src := &guardedSource{fakeSource: newFakeSource("guarded")}
-	src.perms.Process = true
+	src.perms.Process = plugin.Programs{"*"}
 	src.perms.Network = []string{"api.example.com"}
 	addFake(a, src)
 
@@ -1399,7 +1399,7 @@ func TestUpdateAsksForMore(t *testing.T) {
 		{plugin.Permissions{}, false},
 		{plugin.Permissions{Network: []string{"b.example.com"}}, true},
 		{plugin.Permissions{Network: []string{"*"}}, true},
-		{plugin.Permissions{Process: true}, true},
+		{plugin.Permissions{Process: plugin.Programs{"ffmpeg"}}, true},
 	} {
 		if got := asksForMore(had, c.wants); got != c.more {
 			t.Errorf("%+v: %v", c.wants, got)
@@ -1407,5 +1407,13 @@ func TestUpdateAsksForMore(t *testing.T) {
 	}
 	if asksForMore(plugin.Permissions{Network: []string{"*"}}, had) {
 		t.Error("any website already covers one")
+	}
+	// Another program is more, even with the one it had; any program covers it.
+	ffmpeg := plugin.Permissions{Process: plugin.Programs{"ffmpeg"}}
+	if !asksForMore(ffmpeg, plugin.Permissions{Process: plugin.Programs{"ffmpeg", "bin/helper"}}) {
+		t.Error("another program wasn't asked about")
+	}
+	if asksForMore(plugin.Permissions{Process: plugin.Programs{"*"}}, ffmpeg) {
+		t.Error("any program already covers one")
 	}
 }

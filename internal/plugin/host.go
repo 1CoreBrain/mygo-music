@@ -318,11 +318,13 @@ func (v *vm) killPrograms() {
 }
 
 // spawn starts a program, by a path from the plugin's directory or absolute,
-// for a plugin with the process permission that the listener granted. It ends
+// or a name on PATH, for a plugin whose process permission names it, once the
+// listener granted it. It ends
 // with the plugin, at the latest.
 func (p *Plugin) spawn(v *vm) native {
 	return func(_ *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
-		if !p.manifest.Permissions.Process {
+		programs := p.manifest.Permissions.Process
+		if len(programs) == 0 {
 			return moejs.Undefined(), errors.New("spawn needs the process permission")
 		}
 		if !p.Granted() {
@@ -338,6 +340,9 @@ func (p *Plugin) spawn(v *vm) native {
 		}
 		if !filepath.IsAbs(command) && strings.ContainsAny(command, `/\`) {
 			command = filepath.Join(p.dir, command)
+		}
+		if !programs.Allows(p.dir, command) {
+			return moejs.Undefined(), fmt.Errorf("%s isn't one of the programs in the plugin's process permission", moejs.Arg(args, 0).String())
 		}
 		cmd := exec.Command(command, cmdArgs...)
 		cmd.Dir = p.dir

@@ -652,12 +652,12 @@ func (a *app) pluginPermissions(c *ui.Context, lib *library, g guarded, p palett
 		}
 		ui.Text(c, reach).FontSize(12).TextColor(p.muted).LineHeight(1.4)
 	}
-	if !perms.Process {
+	if len(perms.Process) == 0 {
 		return
 	}
 	granted := g.Granted()
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, T("This plugin wants to start programs, which can do anything you can. Only allow it if you trust it.")).
+		ui.Text(c, programsWarning(perms.Process)).
 			FontSize(12).TextColor(p.accent).LineHeight(1.4).Grow(1).Shrink(1).MinWidth(0)
 		label := T("Allow Programs")
 		if granted {
@@ -667,6 +667,15 @@ func (a *app) pluginPermissions(c *ui.Context, lib *library, g guarded, p palett
 			a.grantPrograms(lib, g, !granted)
 		}
 	})
+}
+
+// programsWarning says which programs a plugin wants to start, before the
+// listener lets it.
+func programsWarning(programs plugin.Programs) string {
+	if programs.Any() {
+		return T("This plugin wants to start programs, which can do anything you can. Only allow it if you trust it.")
+	}
+	return Tf("This plugin wants to start %s, which can do anything you can. Only allow it if you trust it.", strings.Join(programs, ", "))
 }
 
 // grantPrograms changes the choice off the main thread, as the plugin starts
