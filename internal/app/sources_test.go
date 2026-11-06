@@ -662,6 +662,62 @@ func TestSignInFails(t *testing.T) {
 	}
 }
 
+// Trying again after a sign-in failed at once leaves the dialog as it was: it
+// showed its wait for a frame, which takes a line where the error took two, and
+// the dialog sprang after it and back, its text moving by fractions of a pixel
+// for half a second. One that takes a while says it's waiting.
+func TestSignInFailingAtOnceStaysPut(t *testing.T) {
+	a := newTestApp()
+	ch := posts(a)
+	msg := "Paste your session's cookie in Settings > Plugins > Example, which says how to find it"
+	slow := make(chan struct{})
+	var hold chan struct{}
+	fake(a).signIn = func() (*music.Account, error) {
+		if hold != nil {
+			<-hold
+		}
+		return nil, errors.New(msg)
+	}
+	tt := ui.NewTester(func(c *ui.Context) { a.signInDialog(c) }, 800, 600)
+	a.promptSignIn(a.library)
+	settled(tt)
+	if err := tt.Click(T("Sign In")); err != nil {
+		t.Fatal(err)
+	}
+	runPost(t, ch)
+	settled(tt)
+	before, ok := tt.Find(msg)
+	if !ok {
+		t.Fatalf("doesn't say why: %q", tt.Texts())
+	}
+
+	if err := tt.Click(T("Sign In")); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	runPost(t, ch)
+	for range 30 {
+		if r, ok := tt.Find(msg); !ok || r != before {
+			t.Fatalf("the error went from %v to %v (shown %v)", before, r, ok)
+		}
+		tt.Advance(16 * time.Millisecond)
+		tt.Frame()
+	}
+
+	hold = slow
+	if err := tt.Click(T("Sign In")); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Advance(signInSettle)
+	tt.Frame()
+	if _, ok := tt.Find(T("Waiting for you to finish signing in…")); !ok {
+		t.Errorf("doesn't say it's waiting: %q", tt.Texts())
+	}
+	close(slow)
+	runPost(t, ch)
+}
+
 // A sign-in that ends after the dialog was put away still counts, with what's the
 // listener's loaded anew.
 func TestSignInEndsAfterDialog(t *testing.T) {

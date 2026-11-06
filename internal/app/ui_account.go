@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"runtime"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -32,7 +33,17 @@ type signInDialog struct {
 	err     string
 	prompt  music.SignInPrompt // what the source wants shown
 	qr      *qr.Code           // prompt's QR, encoded
+
+	// asked is when the dialog first showed this sign-in on its way, by the
+	// view's clock, and last is the error of the one before. Until it has
+	// gone on for signInSettle, the dialog shows what it did, as one that
+	// answers at once would otherwise flash its wait, and move the dialog
+	// for it, as the wait takes a line where an error may take two.
+	asked time.Time
+	last  string
 }
+
+const signInSettle = 250 * time.Millisecond
 
 // loadAccount asks a source who is signed in.
 func (a *app) loadAccount(lib *library) {
@@ -97,8 +108,9 @@ func (a *app) startSignIn() {
 	if lib == nil || d.waiting {
 		return
 	}
-	d.waiting, d.err = true, ""
+	d.waiting, d.err, d.last = true, "", d.err
 	d.prompt, d.qr = music.SignInPrompt{}, nil
+	d.asked = time.Time{}
 	gen := d.gen
 	if p, ok := lib.src.(music.Prompter); ok {
 		p.OnSignInPrompt(func(prompt music.SignInPrompt) {
@@ -170,25 +182,40 @@ func (a *app) signInDialog(c *ui.Context) {
 	d := &a.signIn
 	ui.DialogBase(c.Key("sign-in"), &d.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
+		// What it holds changes its height, and it follows at once: a spring
+		// moved it, and its text with it, by fractions of a pixel for as long
+		// as half a second after a sign-in failed.
 		panel.Width(360).Padding(24).Radius(18).Gap(10).
 			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4)).
-			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.94}, Exit: &ui.Motion{Scale: 0.96}})
+			Transition(ui.ElementTransition{Animation: &ui.Snappy, Colors: true, Enter: &ui.Motion{Scale: 0.94}, Exit: &ui.Motion{Scale: 0.96}})
 		name := ""
 		if d.lib != nil {
 			name = d.lib.name()
 		}
 		ui.Text(c, Tf("Sign in to %s", name)).FontSize(17).FontWeight(700)
+		waiting := d.waiting
+		if waiting && d.prompt.Text == "" && d.qr == nil {
+			if d.asked.IsZero() {
+				d.asked = c.Now()
+			}
+			if left := signInSettle - c.Now().Sub(d.asked); left > 0 {
+				waiting = false
+				c.After(left)
+			}
+		}
 		text := T("You'll finish signing in with the plugin, which may open your browser.")
 		switch {
 		case d.err != "":
 			text = d.err
-		case d.waiting && d.prompt.Text != "":
+		case waiting && d.prompt.Text != "":
 			text = d.prompt.Text
-		case d.waiting:
+		case waiting:
 			text = T("Waiting for you to finish signing in…")
+		case d.last != "":
+			text = d.last
 		}
 		ui.Text(c, text).FontSize(13).TextColor(p.muted).LineHeight(1.45)
-		if code := d.qr; code != nil && d.waiting && d.err == "" {
+		if code := d.qr; code != nil && waiting && d.err == "" {
 			// On white whatever the appearance, for cameras to read it.
 			ui.Row(c).Justify(ui.Center).Margin(6, 0, 2, 0).Children(func() {
 				ui.Box(c).Size(208, 208).Radius(12).Background(ui.Hex("#ffffff")).
@@ -199,7 +226,7 @@ func (a *app) signInDialog(c *ui.Context) {
 			if pillButton(c.Key("cancel"), nil, T("Cancel"), p.hover.Over(p.bg), p.text).Clicked() {
 				d.open = false
 			}
-			if !d.waiting && pillButton(c.Key("ok"), nil, T("Sign In"), p.accent, p.onAccent).Clicked() {
+			if !waiting && pillButton(c.Key("ok"), nil, T("Sign In"), p.accent, p.onAccent).Clicked() {
 				a.startSignIn()
 			}
 		})
