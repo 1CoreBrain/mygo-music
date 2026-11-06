@@ -286,6 +286,9 @@ func TestStreamHeaders(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("no request")
 	}
+	// It ends before the test does: the cache kept the song as the folder was
+	// being removed, and the test failed for what was left in it.
+	dl.waitFor(1 << 30)
 }
 
 // fileSource answers a file for any track, as the built-in source does.
@@ -317,7 +320,7 @@ func TestFileStreamSeeks(t *testing.T) {
 	cache := NewCache(t.TempDir(), 1<<30)
 	p := &Player{Cache: cache}
 	src := fileSource{path: path}
-	info, s, err := p.open(src, music.Track{ID: "1", Source: "disk", Duration: int64(len(ref)/2) * 1000 / 44100}, "high")
+	info, s, err := p.open(src, music.Track{ID: "1", Source: "disk", Duration: int64(len(ref)/2) * 1000 / 44100}, "high", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,6 +343,59 @@ func TestFileStreamSeeks(t *testing.T) {
 	}
 	if songs := cache.songs(); len(songs) != 0 {
 		t.Errorf("the cache took %v", songs)
+	}
+}
+
+// A song of no known size seeks while it comes in, by its bit rate, and lands
+// where it would with its size known. It used to wait for all of it: a
+// plugin's, converted as it's fetched, has no size, and a click past what had
+// come in played nothing for as long as the rest of the song took.
+func TestSeekBeforeAllIsIn(t *testing.T) {
+	b, err := os.ReadFile("testdata/seek.mp3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	durationMs := int64(len(decodeAll(t, b))/2) * 1000 / 44100
+	rest := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(b[:len(b)*3/4])
+		w.(http.Flusher).Flush()
+		<-rest
+	}))
+	defer srv.Close()
+	defer close(rest)
+	dl := (*Cache)(nil).download("s", "1", "high", &music.Stream{URL: srv.URL, Type: "mp3"})
+	s, err := openStream(dl, durationMs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	whole, err := openStream(downloaded(b), durationMs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame := int64(2 * 44100)
+	done := make(chan error, 1)
+	go func() { done <- s.SetPosition(frame) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("waited for the rest of the song")
+	}
+	if err := whole.SetPosition(frame); err != nil {
+		t.Fatal(err)
+	}
+	got, want := make([]float32, 4096), make([]float32, 4096)
+	n, err := s.Read(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, _ := whole.Read(want)
+	if d := maxDiff(got[:n], want[:m]); d > 1e-4 {
+		t.Errorf("landed apart from where it would with its size, by up to %.4f", d)
 	}
 }
 

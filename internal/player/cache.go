@@ -65,6 +65,15 @@ func (c *Cache) lookup(source, id, quality string) (*download, *music.Stream, bo
 	return opened(f, st.Size), st, true
 }
 
+// has reports whether a song is kept at quality or a better one.
+func (c *Cache) has(source, id, quality string) bool {
+	f, _, ok := c.find(source, id, quality)
+	if ok {
+		f.Close()
+	}
+	return ok
+}
+
 // find opens a song kept at quality or a better one, all of it there, with its
 // stream.
 func (c *Cache) find(source, id, quality string) (*os.File, *music.Stream, bool) {

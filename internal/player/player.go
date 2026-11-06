@@ -64,6 +64,7 @@ type Player struct {
 	track   *music.Track
 	out     *audio.Player
 	stream  stream
+	watch   *watched // stream, as out plays it
 	info    *music.Stream // what the current track streams
 	fade    fader
 	gain    float64 // the current track's normalizing gain
@@ -96,6 +97,8 @@ type Player struct {
 	volumeQueued bool
 
 	recorded string // the track last told its source it played
+
+	ahead *ahead // the next track's audio, asked for before its turn
 }
 
 func New(post func(func())) *Player {
@@ -350,7 +353,11 @@ func (p *Player) Queue() []music.Track { return p.queue }
 func (p *Player) Playing() bool { return p.playing }
 
 // Loading reports whether the current track is still loading.
-func (p *Player) Loading() bool { return p.loading || p.awaiting }
+// Loading reports whether the current track is on its way: loading, or
+// waiting for the next of its bytes, after a seek past what has come in.
+func (p *Player) Loading() bool {
+	return p.loading || p.awaiting || p.watch != nil && p.watch.starved()
+}
 
 // Ready reports whether the current track has loaded, to play.
 func (p *Player) Ready() bool { return p.out != nil || p.remote != nil && p.remote.started }
@@ -485,6 +492,8 @@ func (p *Player) Seek(t time.Duration) {
 		return
 	}
 	out := p.out
+	// One past what has come in waits for it: a frame once that would show.
+	p.after(seekGap+starvedAfter+20*time.Millisecond, func() { p.post(func() {}) })
 	// Paused, it jumps at once; but a seek on its way paused it only for
 	// the jump, and this one takes its place, playing on from there.
 	if !out.Playing() && !p.seeking {
@@ -588,7 +597,7 @@ func (p *Player) stop() {
 		out.Pause()
 		time.AfterFunc(100*time.Millisecond, out.Close)
 	}
-	p.out, p.stream, p.info, p.remote = nil, nil, nil, nil
+	p.out, p.stream, p.watch, p.info, p.remote = nil, nil, nil, nil, nil
 	p.seeking = false
 	p.fade.attach(nil, 1)
 }
@@ -667,12 +676,13 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 		p.loadRemote(gen, src, at, skipped, dir, play, from)
 		return
 	}
+	quality := music.Qualities[len(music.Qualities)/2]
+	if p.Quality != nil {
+		quality = p.Quality()
+	}
+	pre := p.takeAhead(t, quality)
 	go func() {
-		quality := music.Qualities[len(music.Qualities)/2]
-		if p.Quality != nil {
-			quality = p.Quality()
-		}
-		info, s, err := p.open(src, t, quality)
+		info, s, err := p.open(src, t, quality, pre)
 		p.post(func() {
 			if gen != p.gen {
 				if s != nil {
@@ -687,7 +697,8 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 			}
 			p.stream, p.info = s, info
 			p.gain = normGain(info)
-			p.out = audio.NewPlayer(s)
+			p.watch = &watched{stream: s, now: p.now, ended: func() { p.post(func() {}) }}
+			p.out = audio.NewPlayer(p.watch)
 			// From its middle, as a session picked up again, it fades in.
 			level := 1.0
 			if p.pending > 0 {
@@ -712,6 +723,7 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 				p.record()
 			}
 			p.sync()
+			p.getAhead(quality)
 		})
 	}()
 }
@@ -792,14 +804,36 @@ func errorText(err error) string {
 
 var errNoSource = errors.New("player: no such source")
 
-// open opens track t's audio at quality: kept in the cache, or else a file on
-// disk, played from there, or else streamed into the cache, and kept once it
-// has all come in.
-func (p *Player) open(src music.Source, t music.Track, quality string) (*music.Stream, stream, error) {
+// open opens track t's audio at quality: what was asked for ahead of it, if
+// that worked; or kept in the cache, or else a file on disk, played from
+// there, or else streamed into the cache, and kept once it has all come in.
+// What failed ahead is asked for again: it may have been a moment's.
+func (p *Player) open(src music.Source, t music.Track, quality string, pre *ahead) (*music.Stream, stream, error) {
 	if src == nil {
+		if pre != nil {
+			pre.close()
+		}
 		return nil, nil, errNoSource
 	}
-	dl, info, ok := p.Cache.lookup(t.Source, t.ID, quality)
+	var dl *download
+	var info *music.Stream
+	ok := false
+	if pre != nil {
+		<-pre.done
+		if pre.err == nil {
+			info, dl, ok = pre.info, pre.dl, true
+			if dl == nil {
+				path, _ := music.PathOf(info.URL)
+				var err error
+				if dl, err = openFile(path); err != nil {
+					return nil, nil, err
+				}
+			}
+		}
+	}
+	if !ok {
+		dl, info, ok = p.Cache.lookup(t.Source, t.ID, quality)
+	}
 	if !ok {
 		var err error
 		info, err = src.Stream(t.ID, quality)

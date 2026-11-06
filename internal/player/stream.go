@@ -408,6 +408,21 @@ func openMP3Stream(dl *download, durationMs int64) (*mp3Stream, error) {
 	return s, nil
 }
 
+// estimateSize is how long a song of no known size is, to seek in it before
+// all of it is in: as long as its first frame's bit rate makes its length, as
+// a source converting a song as it's fetched writes it at one bit rate. With
+// all of it in, or no frame to go by, it's what came.
+func (s *mp3Stream) estimateSize() int64 {
+	s.dl.waitFor(s.start + 4)
+	s.dl.mu.Lock()
+	done := s.dl.done
+	s.dl.mu.Unlock()
+	if kbps := frameBitRate(s.dl.peek(s.start, 4)); !done && kbps > 0 {
+		return s.start + s.frames*int64(kbps)*1000/8/int64(s.rate)
+	}
+	return s.dl.waitFor(math.MaxInt64)
+}
+
 // id3Size returns the length of the ID3v2 tag at the start of the file.
 func id3Size(dl *download) int64 {
 	dl.waitFor(10)
@@ -469,7 +484,7 @@ func (s *mp3Stream) SetPosition(frame int64) error {
 	if from := frame - preroll; from > 0 && s.frames > 0 {
 		size := s.dl.size
 		if size <= 0 {
-			size = s.dl.waitFor(math.MaxInt64)
+			size = s.estimateSize()
 		}
 		off = s.start + int64(float64(size-s.start)*float64(from)/float64(s.frames))
 		off = findFrame(s.dl, off)
@@ -583,6 +598,18 @@ var (
 	bitratesV2 = [16]int{0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0}
 	rates      = [4]int{44100, 48000, 32000, 0}
 )
+
+// frameBitRate returns the bit rate in kbps of the MPEG layer III frame whose
+// header b starts with, or 0 if it starts with none.
+func frameBitRate(b []byte) int {
+	if frameSize(b) == 0 {
+		return 0
+	}
+	if (b[1]>>3)&3 == 3 {
+		return bitratesV1[b[2]>>4]
+	}
+	return bitratesV2[b[2]>>4]
+}
 
 // frameSize returns the length of the MPEG layer III frame whose header b
 // starts with, or 0 if it starts with none.
