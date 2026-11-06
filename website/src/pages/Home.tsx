@@ -343,8 +343,11 @@ function Plugins() {
               {t('Read the Guide', '阅读插件指南')}
               <Icon name="arrow" size={16} />
             </a>
-            <a class="btn btn-ghost" href={`${repo}/tree/main/examples/demo-plugin`}>
+            <LangLink class="btn btn-ghost" to="/plugins">
               <Icon name="plugin" size={17} />
+              {t('Browse Plugins', '浏览插件')}
+            </LangLink>
+            <a class="btn btn-ghost" href={`${repo}/tree/main/examples/demo-plugin`}>
               {t('Demo Plugin', '示例插件')}
             </a>
           </div>

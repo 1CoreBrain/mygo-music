@@ -1,16 +1,18 @@
 import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/solid-start/plugin/vite'
 import solid from 'vite-plugin-solid'
+import { pluginQuery, pluginsFrom } from './src/plugins'
 
 // The latest release, with its installers, for the download page to link
 // to. It's fetched once, as the site is built: a release that is published
 // later is linked to once the site is built again. GH_TOKEN or GITHUB_TOKEN,
 // if set, is sent with the request, for the API's rate limit.
+const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN
+const github = (path: string) =>
+  fetch(`https://api.github.com${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} })
+
 async function latestRelease() {
-  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN
-  const res = await fetch('https://api.github.com/repos/egoist/mygo-music/releases/latest', {
-    headers: token ? { authorization: `Bearer ${token}` } : {},
-  })
+  const res = await github('/repos/egoist/mygo-music/releases/latest')
   if (!res.ok) throw new Error(`fetching the latest release: GitHub answered ${res.status}`)
   const r = await res.json()
   return {
@@ -20,8 +22,20 @@ async function latestRelease() {
   }
 }
 
+// The plugins on GitHub, by their topic, for the plugins page to list as
+// it's built. The page asks GitHub again in the browser, for the plugins
+// published since.
+async function plugins() {
+  const res = await github(`/search/repositories?q=${encodeURIComponent(pluginQuery)}&sort=stars&per_page=100`)
+  if (!res.ok) throw new Error(`searching for plugins: GitHub answered ${res.status}`)
+  return pluginsFrom(await res.json())
+}
+
 export default defineConfig(async () => ({
-  define: { __RELEASE__: JSON.stringify(await latestRelease()) },
+  define: {
+    __RELEASE__: JSON.stringify(await latestRelease()),
+    __PLUGINS__: JSON.stringify(await plugins()),
+  },
   plugins: [
     // Every page is rendered at build time, so the site is plain files
     // that Cloudflare serves as static assets.

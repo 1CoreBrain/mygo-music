@@ -1,4 +1,5 @@
 import type { Lang } from './i18n'
+import type { Plugin } from './plugins'
 
 export const repo = 'https://github.com/egoist/mygo-music'
 
@@ -8,6 +9,10 @@ export type Release = { tag_name: string; published_at: string; assets: Asset[] 
 declare const __RELEASE__: Release
 // The latest release, as it was when the site was built (see vite.config.ts).
 export const release = __RELEASE__
+
+declare const __PLUGINS__: Plugin[]
+// The plugins on GitHub, as they were when the site was built.
+export const builtPlugins = __PLUGINS__
 export const mygo = 'https://mygo.egoist.dev'
 
 export const site = {

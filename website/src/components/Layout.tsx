@@ -1,6 +1,6 @@
 import { createSignal, onCleanup, onMount, type JSX } from 'solid-js'
 import { AppIcon } from './AppIcon'
-import { GitHubMark } from './Icon'
+import { GitHubMark, Icon } from './Icon'
 import { ThemeSwitch } from '../theme'
 import { mygo, repo, site } from '../site'
 import { LangLink, LangMenu, useT } from '../i18n'
@@ -35,6 +35,10 @@ function Header(props: { langPath?: string }) {
           <span>{site.name}</span>
         </LangLink>
         <div class="nav-end">
+          <LangLink to="/plugins" class="nav-link" aria-label={t('Plugins', '插件')}>
+            <Icon name="plugin" size={16} />
+            <span>{t('Plugins', '插件')}</span>
+          </LangLink>
           <LangMenu path={props.langPath} />
           <ThemeSwitch class="nav-theme" />
           <a class="icon-link" href={repo} aria-label={t('Source code on GitHub', 'GitHub 上的源代码')}>
