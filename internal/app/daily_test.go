@@ -86,3 +86,21 @@ func TestFeatureCardPicks(t *testing.T) {
 		t.Fatalf("playing %+v of %d", cur, len(a.pl.Queue()))
 	}
 }
+
+// Playlists in the feature card's own section keep off it as rows of cards keep
+// apart: they came right under it, as its section's title, which would have
+// kept them off, is the card's.
+func TestFeatureCardKeepsItsSectionOff(t *testing.T) {
+	a := featureApp("")
+	a.home.Sections[0].Playlists = []music.Playlist{{ID: "p1", Name: "Coding BGM"}}
+	tt := ui.NewTester(a.view, 1200, 900)
+	settled(tt)
+	card, ok := tt.Find("For You")
+	list, ok2 := tt.Find("Coding BGM")
+	if !ok || !ok2 {
+		t.Fatalf("shows %q", tt.Texts())
+	}
+	if gap := list.Y - (card.Y + card.H); gap < cardRowGap-0.5 {
+		t.Errorf("the playlists are %.1f under the card", gap)
+	}
+}

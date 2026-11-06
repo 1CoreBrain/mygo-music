@@ -146,7 +146,13 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 		sec := &page.Sections[r.section]
 		switch r.kind {
 		case rowFeature:
-			ui.Box(c).PaddingX(12).Children(func() { a.featureCard(c, sec, pageID, r.section, now) })
+			// What else its section has follows it untitled, as the card has
+			// the title, so the card keeps it off as rows of cards keep apart.
+			below := float32(0)
+			if i < len(layout) && layout[i].section == r.section {
+				below = cardRowGap
+			}
+			ui.Box(c).Padding(0, 12, below, 12).Children(func() { a.featureCard(c, sec, pageID, r.section, now) })
 		case rowTitle:
 			a.browseTitle(c, sec, r.section == 0)
 		case rowTrack:
@@ -178,10 +184,13 @@ func (a *app) browseTitle(c *ui.Context, sec *music.Section, first bool) {
 	})
 }
 
+// cardRowGap is the room under a row of cards.
+const cardRowGap = 28
+
 // cardRow is a row of a section's cards, which keep their columns whatever
 // the number in the last row.
 func (a *app) cardRow(c *ui.Context, sec *music.Section, r browseRow, cols int) {
-	ui.Grid(c).Columns(cols).GapX(20).Margin(0, 12, 28, 12).Children(func() {
+	ui.Grid(c).Columns(cols).GapX(20).Margin(0, 12, cardRowGap, 12).Children(func() {
 		for i := r.from; i < r.to; i++ {
 			switch r.kind {
 			case rowAlbums:
