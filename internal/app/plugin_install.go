@@ -172,7 +172,7 @@ func (a *app) installFromDisk(folder bool) {
 			a.post(func() {
 				in.busy = false
 				if err != nil {
-					in.err = err.Error()
+					in.err = installError(err)
 					return
 				}
 				in.pending = pending
@@ -185,6 +185,9 @@ func (a *app) installFromDisk(folder bool) {
 func installError(err error) string {
 	if errors.Is(err, plugin.ErrNoRepo) {
 		return T("There's no such public repository on GitHub")
+	}
+	if needs, ok := errors.AsType[*plugin.NeedsNewerApp](err); ok {
+		return Tf("%s needs MyGo Music %s or later. Update MyGo Music first.", needs.Plugin, needs.Version)
 	}
 	return err.Error()
 }
@@ -202,7 +205,7 @@ func (a *app) confirmInstall() {
 		a.post(func() {
 			in.busy = false
 			if err != nil {
-				in.err = err.Error()
+				in.err = installError(err)
 				return
 			}
 			in.repo = ""

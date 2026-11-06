@@ -95,6 +95,10 @@ func (a *app) setLanguage(code string) {
 	if lib := a.libOf(local.ID); lib != nil {
 		a.libraryChanged(lib)
 	}
+	// A plugin's pages are in the language it was asked in.
+	if lib := a.library; pluginOf(lib) != nil {
+		a.libraryChanged(lib)
+	}
 }
 
 // choice is a select of labels, to translate, reporting the index of the one

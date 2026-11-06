@@ -40,6 +40,7 @@ A plugin is a folder in the app's `plugins` directory (Settings > Plugins > + > 
   "id": "example",
   "name": "Example",
   "version": "1.0.0",
+  "minAppVersion": "0.1.8",
   "main": "index.js",
   "playback": "stream",
   "permissions": { "network": ["api.example.com"] },
@@ -112,6 +113,18 @@ The shapes are in [`internal/music/music.go`](internal/music/music.go) by their 
 
 `navigation` is the plugin's sidebar, in its order. An entry opens a `browse` page of its own by `page`, or one of the app's by `builtin`: `home`, `liked`, `savedAlbums`, `stations` or `shows`, which can be given a `title`. Without `navigation`, the sidebar has an entry for each of the app's pages the plugin can do. Up to four stations show as a switch over one card, and more as a grid.
 
+`minAppVersion` is the oldest version of MyGo Music the plugin works with. An older one won't install it, and says to update first. Versions before 0.1.8 don't read it.
+
+### Translating a plugin
+
+Put the translations in `locales/<language>.json` next to `plugin.json`: `locales/zh-CN.json` for Simplified Chinese, the language the app speaks besides English. Each one maps the English text to the translation:
+
+```json
+{ "Example": "示例", "API Key": "API 密钥", "From your account page": "在你的账号页面获取", "Charts": "排行榜" }
+```
+
+The app translates the plugin's `name`, its settings' `label` and `help` and its `navigation` titles with them. For what the plugin says itself, such as a page's titles or an error's message, `host.t(text)` answers the translation, or `text` when there's none, and `host.language()` the listener's language, `en` or `zh-CN`. Both follow the listener as they change it, and the page they're on loads again.
+
 With `"playback": "stream"`, the app plays what `stream` answers. With `"playback": "remote"`, the plugin makes the sound itself, or has another program do so, and the app calls the `remote` functions and polls `remoteState`.
 
 Throw an error with a `code` to say what's wrong: `signIn` prompts the listener to sign in, `setup` sends them to the plugin's settings, `unavailable` means this can't be played, and `unsupported` means the plugin doesn't do this. Any other error shows its message.
@@ -134,6 +147,7 @@ A plugin has the JavaScript standard library, timers, `fetch` and its relatives,
 | `host.dir`, `host.dataDir` | the plugin's folder, and one for its data |
 | `host.storage.get(key)`, `.set(key, value)`, `.remove(key)` | JSON values that outlive the app |
 | `host.setting(key)` | what the listener filled in |
+| `host.t(text)`, `host.language()` | the text in the listener's language, from the plugin's `locales`, and that language: `en` or `zh-CN` |
 | `host.removeDataDir(name)` | removes a folder inside `host.dataDir` |
 | `host.crypto.md5(text)` | its hash, in hex |
 | `host.crypto.aesEcbEncrypt(key, text)` | AES-ECB with PKCS#7 padding, in hex, for services whose requests are made that way |
