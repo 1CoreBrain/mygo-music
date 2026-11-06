@@ -257,6 +257,16 @@ func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
 	}
 }
 
+// clearSearch empties the field and forgets the search last shown, which
+// the sidebar goes back to; on its page, it goes Home.
+func (a *app) clearSearch() {
+	a.searched, a.query = route{}, ""
+	a.dismissSuggestions()
+	if a.route.page == pageSearch && !a.nowPlaying {
+		a.open(route{page: pageHome})
+	}
+}
+
 // playerBarHeight is the height of the player along the foot of the pages.
 const playerBarHeight = 84
 

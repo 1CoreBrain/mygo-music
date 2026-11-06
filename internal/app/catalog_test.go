@@ -3,6 +3,8 @@ package app
 import (
 	"errors"
 	"fmt"
+	"image"
+	"image/draw"
 	"os"
 	"slices"
 	"testing"
@@ -171,6 +173,134 @@ func TestSearchHistoryChoice(t *testing.T) {
 		}
 		if !slices.Equal(a.settings.SearchHistory, []string{"壱雫空", "迷星叫"}) {
 			t.Errorf("keys %v: history %q", keys, a.settings.SearchHistory)
+		}
+	}
+}
+
+// A click anywhere on the sidebar's search field focuses it: only the text
+// in the middle took the click, not the icon, the padding or the edges.
+func TestSearchFieldClickFocuses(t *testing.T) {
+	for _, at := range []struct {
+		name   string
+		dx, dy float32 // from the field's center
+	}{
+		{"icon", -(sidebarWidth-28)/2 + 12, 0},
+		{"end", (sidebarWidth-28)/2 - 4, 0},
+		{"top", 0, -13},
+		{"bottom", 0, 13},
+	} {
+		a := newTestApp()
+		tt := ui.NewTester(a.view, 1200, 800)
+		tt.Frame()
+		r, ok := tt.Find("Search")
+		if !ok {
+			t.Fatal("no search field")
+		}
+		tt.ClickAt(sidebarWidth/2+at.dx, r.Y+r.H/2+at.dy)
+		tt.Frame()
+		tt.Type("迷星叫")
+		tt.Frame()
+		if a.query != "迷星叫" {
+			t.Errorf("a click on the field's %s left it unfocused", at.name)
+		}
+	}
+}
+
+// The × in the search field empties it and takes Search Results out of the
+// sidebar, leaving the results' page for Home, but not another page.
+func TestClearSearch(t *testing.T) {
+	for _, onPage := range []bool{true, false} {
+		a := newTestApp()
+		fakeSearch(a)
+		tt := ui.NewTester(a.view, 1200, 800)
+		tt.Frame()
+		tt.Click("Search")
+		tt.Type("迷星叫")
+		tt.Key(0, ui.KeyEnter)
+		tt.Frame()
+		if !onPage {
+			a.open(route{page: pageLiked})
+		}
+		before := a.route
+		tt.Frame()
+		if err := tt.Click("Clear Search"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if tt.HasText("Search Results") || a.query != "" {
+			t.Errorf("on page %v: the results stay in the sidebar, field %q", onPage, a.query)
+		}
+		want := before
+		if onPage {
+			want = route{page: pageHome, src: "fake"}
+		}
+		if a.route != want {
+			t.Errorf("on page %v: showing %+v, want %+v", onPage, a.route, want)
+		}
+	}
+}
+
+// Clear Recent Searches in the empty field's popup forgets the searches
+// before, and closes the popup without searching.
+func TestClearRecentSearches(t *testing.T) {
+	a := newTestApp()
+	asked := fakeSearch(a)
+	a.settings.SearchHistory = []string{"迷星叫", "壱雫空"}
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if err := tt.Click("Search"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("Clear Recent Searches"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	if len(a.settings.SearchHistory) != 0 {
+		t.Errorf("history %q", a.settings.SearchHistory)
+	}
+	if tt.HasText("迷星叫") {
+		t.Error("the popup still lists the searches before")
+	}
+	select {
+	case got := <-asked:
+		t.Errorf("clearing searched %+v", got)
+	default:
+	}
+}
+
+// With MM_FRAMES set, saves the search field's popup, with the searches
+// before and with suggestions, light and dark.
+func TestSearchPopupFrames(t *testing.T) {
+	dir := os.Getenv("MM_FRAMES")
+	if dir == "" {
+		t.Skip()
+	}
+	for _, dark := range []bool{false, true} {
+		for _, typed := range []bool{false, true} {
+			a := newTestApp()
+			ch := posts(a)
+			a.settings.SearchHistory = []string{"迷星叫", "壱雫空", "a"}
+			fake(a).suggest = func(q string) ([]string, error) { return []string{"迷跡波", "迷跡波 Live"}, nil }
+			tt := ui.NewTester(a.view, 1000, 600)
+			tt.SetDark(dark)
+			tt.Frame()
+			tt.Click("Search")
+			if typed {
+				tt.Type("迷跡")
+				tt.Frame()
+				runPost(t, ch)
+			}
+			tt.Advance(time.Second)
+			tt.Frame()
+			img := tt.Image()
+			s := float32(img.Bounds().Dx()) / 1000
+			crop := image.Rect(0, 0, int((sidebarWidth+80)*s), int(300*s))
+			out := image.NewRGBA(image.Rect(0, 0, crop.Dx(), crop.Dy()))
+			draw.Draw(out, out.Bounds(), img, crop.Min, draw.Src)
+			name := fmt.Sprintf("search-dark%v-typed%v.png", dark, typed)
+			saveFrame(t, dir, name, out)
 		}
 	}
 }

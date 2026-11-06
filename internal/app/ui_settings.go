@@ -213,16 +213,18 @@ const settingsSidebarWidth = 200
 
 // settingsSearch is the field that finds settings across all the pages.
 func (a *app) settingsSearch(c *ui.Context, p palette) {
-	field := ui.Row(c).Height(30).PaddingX(9).Gap(7).Radius(8).AlignItems(ui.Center).Margin(0, 0, 10, 0)
+	field := ui.Row(c).Height(30).Radius(8).AlignItems(ui.Stretch).Margin(0, 0, 10, 0)
 	if c.Focused(a.settingsSearchBox) {
 		field.Background(p.bg).Shadow(0, 0, 0, 3, p.accent.Alpha(0.25)).Border(1, p.accent)
 	} else {
 		field.Background(p.hover).Border(1, p.hairline)
 	}
 	field.Children(func() {
-		ui.Icon(c, iconSearch).Size(13, 13).TextColor(p.muted)
-		ui.TextInputBase(c.Key("search"), &a.settingsQuery).Bind(&a.settingsSearchBox).Grow(1).MinWidth(0).
+		// The input fills the field, under its icon, so a click anywhere on
+		// the field focuses it.
+		ui.TextInputBase(c.Key("search"), &a.settingsQuery).Bind(&a.settingsSearchBox).Grow(1).MinWidth(0).PaddingStart(29).PaddingEnd(9).
 			Placeholder(T("Search")).FontSize(13).Label(T("Search Settings"))
+		ui.Icon(c, iconSearch).Size(13, 13).TextColor(p.muted).Absolute().Left(9).Top(7.5).IgnoreInput(true)
 	})
 }
 
