@@ -2,6 +2,12 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.15] - 2026-11-07
+
+### Added
+
+- A podcast's host, on its page, opens the host's own page, for plugins that have one.
+
 ## [0.1.14] - 2026-11-07
 
 ### Added
@@ -133,6 +139,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.15]: https://github.com/egoist/mygo-music/compare/v0.1.14...v0.1.15
 [0.1.14]: https://github.com/egoist/mygo-music/compare/v0.1.13...v0.1.14
 [0.1.13]: https://github.com/egoist/mygo-music/compare/v0.1.12...v0.1.13
 [0.1.12]: https://github.com/egoist/mygo-music/compare/v0.1.11...v0.1.12
