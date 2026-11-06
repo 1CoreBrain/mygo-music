@@ -136,6 +136,7 @@ A plugin has the JavaScript standard library, timers, `fetch` and its relatives,
 | `host.openURL(url)` | opens a web page in the listener's browser |
 | `host.signInPrompt({qr, text})` | what the sign-in window shows while `signIn` goes on: a QR code to scan, and what to do |
 | `host.waitForRedirect({port, path, timeout, page})` | the end of a browser sign-in: listens on `127.0.0.1` and answers the query it's redirected back with. Needs the network permission |
+| `host.webSignIn({url, cookiesOf, until, userAgent})` | a sign-in on the service's own page, for one that has no other way in: the app shows `url` in a window of its own, apart from every other page and forgotten after, and once the cookies named in `until` are all there, closes it and answers `{cookie}`, the Cookie header a request to `cookiesOf` would send. `cookiesOf` has to be a host the network permission reaches. `userAgent` is what the page is told it's shown in |
 | `host.spawn(command, args)` | starts a program, by a path from the plugin's folder or absolute. Needs the process permission. Returns `{pid, write(text), closeStdin(), readLine(), wait(), kill(), errorOutput()}` |
 
 Everything else takes a permission in `plugin.json`:

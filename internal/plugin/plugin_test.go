@@ -351,6 +351,48 @@ export function suggest() { host.openURL("file:///etc/passwd"); return []; }`)
 	}
 }
 
+// A sign-in on a page answers its cookies, for an address the plugin reaches
+// alone: not another site's, nor without a network permission, nor on a page
+// that isn't secure.
+func TestWebSignIn(t *testing.T) {
+	var asked WebSignIn
+	SetWebSignIn(func(o WebSignIn) (string, error) { asked = o; return "SID=abc; HSID=def", nil })
+	defer SetWebSignIn(func(WebSignIn) (string, error) { return "", errors.New("no page") })
+	ask := func(url, cookiesOf string) string {
+		return fmt.Sprintf(`{ url: %q, cookiesOf: %q, until: ["SID"] }`, url, cookiesOf)
+	}
+	p := load(t, `{"id":"x","name":"X","permissions":{"network":["api.example.com","*.example.org"]}}`, `
+export async function signIn() {
+  const { cookie } = await host.webSignIn(`+ask("https://accounts.example.com/login", "https://api.example.com")+`);
+  return { id: cookie, name: "me" };
+}
+export async function search({ query }) {
+  const asks = {
+    elsewhere: `+ask("https://accounts.example.com/login", "https://other.example.net")+`,
+    below: `+ask("https://accounts.example.com/login", "https://www.example.org")+`,
+    plain: `+ask("http://accounts.example.com/login", "https://api.example.com")+`,
+  };
+  await host.webSignIn(asks[query]);
+  return {};
+}`)
+	acc, err := p.SignIn()
+	if err != nil || acc.ID != "SID=abc; HSID=def" {
+		t.Fatalf("signed in as %+v, %v", acc, err)
+	}
+	if asked.Plugin != "x" || asked.Name != "X" || asked.URL != "https://accounts.example.com/login" || asked.Until[0] != "SID" {
+		t.Errorf("asked for %+v", asked)
+	}
+	for query, ok := range map[string]bool{"elsewhere": false, "below": true, "plain": false} {
+		if _, err := p.Search(query, music.SearchTracks, 0); (err == nil) != ok {
+			t.Errorf("%s: %v", query, err)
+		}
+	}
+	none := load(t, plain, `export async function signIn() { await host.webSignIn(`+ask("https://a.example.com", "https://a.example.com")+`); }`)
+	if _, err := none.SignIn(); err == nil {
+		t.Error("signed in without the network permission")
+	}
+}
+
 // One broken plugin is left out, not the end of the others, and a missing name
 // or way of playing has a default.
 func TestDiscover(t *testing.T) {

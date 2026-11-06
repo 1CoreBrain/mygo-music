@@ -203,12 +203,14 @@ func (a *app) signInDialog(c *ui.Context) {
 				c.After(left)
 			}
 		}
-		text := T("You'll finish signing in with the plugin, which may open your browser.")
+		text := T("You'll finish signing in with the plugin, on a page it opens.")
 		switch {
 		case d.err != "":
 			text = d.err
 		case waiting && d.prompt.Text != "":
 			text = d.prompt.Text
+		case waiting && d.lib != nil && a.signInPages[d.lib.id] != nil:
+			text = T("Continue in the window that opened.")
 		case waiting:
 			text = T("Waiting for you to finish signing in…")
 		case d.last != "":
@@ -225,6 +227,11 @@ func (a *app) signInDialog(c *ui.Context) {
 		ui.Row(c).Gap(10).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
 			if pillButton(c.Key("cancel"), nil, T("Cancel"), p.hover.Over(p.bg), p.text).Clicked() {
 				d.open = false
+				// Its page goes too. Put away otherwise, the dialog leaves it to
+				// finish signing in on.
+				if d.lib != nil {
+					a.closeSignInPage(d.lib.id)
+				}
 			}
 			if !waiting && pillButton(c.Key("ok"), nil, T("Sign In"), p.accent, p.onAccent).Clicked() {
 				a.startSignIn()

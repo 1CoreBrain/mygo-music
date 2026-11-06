@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/MoeForge/moejs"
+	"github.com/MoeForge/moejs/webapi"
 
 	"mygo-music/internal/music"
 )
@@ -32,6 +33,35 @@ var openURL = func(string) error { return errors.New("can't open pages here") }
 
 // SetOpenURL says how to open a page in the listener's browser.
 func SetOpenURL(open func(string) error) { openURL = open }
+
+// WebSignIn is a sign-in on a page the app shows, in a window of its own, as
+// host.webSignIn asks for one: what a plugin has nothing else to sign in with,
+// as a service's website is the only way in. The page is apart from every
+// other, the listener's browser too, and forgotten after.
+type WebSignIn struct {
+	// Plugin and Name are the plugin's ID and its name, for the window.
+	Plugin string `json:"-"`
+	Name   string `json:"-"`
+	// URL is the page to sign in on.
+	URL string `json:"url"`
+	// CookiesOf is where the cookies are for: those a request to this
+	// address would send are the answer. The plugin's network permission
+	// has to reach it.
+	CookiesOf string `json:"cookiesOf"`
+	// Until names the cookies that say the listener signed in: once all of
+	// them are there, the window closes and the cookies go to the plugin.
+	Until []string `json:"until"`
+	// UserAgent is what the page is told it's shown in, for a site that
+	// turns down what it doesn't know.
+	UserAgent string `json:"userAgent,omitempty"`
+}
+
+// webSignIn shows a sign-in page and answers its cookies as a Cookie header.
+// The app sets it.
+var webSignIn = func(WebSignIn) (string, error) { return "", errors.New("can't show a sign-in page here") }
+
+// SetWebSignIn says how to show a sign-in page, and get its cookies.
+func SetWebSignIn(show func(WebSignIn) (string, error)) { webSignIn = show }
 
 type native = func(*moejs.Realm, moejs.Value, []moejs.Value) (moejs.Value, error)
 
@@ -110,6 +140,7 @@ func (p *Plugin) installHost(v *vm) error {
 			return moejs.Undefined(), os.RemoveAll(filepath.Join(p.data, name))
 		}),
 		"waitForRedirect": moejs.NativeFunc(p.waitForRedirect(v)),
+		"webSignIn":       moejs.NativeFunc(p.webSignIn(v)),
 		"spawn":           moejs.NativeFunc(p.spawn(v)),
 	})
 }
@@ -218,6 +249,54 @@ func awaitRedirect(port int, path, page string, wait time.Duration) (map[string]
 	case <-time.After(wait):
 		return nil, errors.New("timed out waiting for the sign-in to come back")
 	}
+}
+
+// webSignIn has the app show a sign-in page, and answers {cookie}: the Cookie
+// header of the address asked for, once the cookies named are all there. Only
+// a plugin's own addresses: those its network permission reaches.
+func (p *Plugin) webSignIn(v *vm) native {
+	return func(_ *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+		var o WebSignIn
+		if err := v.rt.ToGoInto(moejs.Arg(args, 0), &o); err != nil {
+			return moejs.Undefined(), err
+		}
+		if err := p.checkWebSignIn(o); err != nil {
+			return moejs.Undefined(), err
+		}
+		o.Plugin, o.Name = p.manifest.ID, p.manifest.Name
+		promise, settle := v.loop.NewPromise()
+		go func() {
+			cookie, err := webSignIn(o)
+			settle(func(rt *moejs.Runtime) (moejs.Value, error) {
+				if err != nil {
+					return moejs.Undefined(), err
+				}
+				return rt.FromGo(map[string]any{"cookie": cookie})
+			})
+		}()
+		return promise, nil
+	}
+}
+
+func (p *Plugin) checkWebSignIn(o WebSignIn) error {
+	network := p.manifest.Permissions.Network
+	if len(network) == 0 {
+		return errors.New("webSignIn needs the network permission")
+	}
+	if u, err := url.Parse(o.URL); err != nil || u.Scheme != "https" || u.Host == "" {
+		return fmt.Errorf("not a secure web address to sign in on: %s", o.URL)
+	}
+	u, err := url.Parse(o.CookiesOf)
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return fmt.Errorf("cookiesOf isn't a secure web address: %s", o.CookiesOf)
+	}
+	if err := webapi.AllowHosts(network...)(&http.Request{URL: u}); err != nil {
+		return fmt.Errorf("the plugin can't reach %s, so it can't have its cookies", u.Hostname())
+	}
+	if len(o.Until) == 0 {
+		return errors.New("webSignIn needs the names of the cookies that say it's done, as until")
+	}
+	return nil
 }
 
 // program is what a plugin started.

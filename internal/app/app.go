@@ -75,6 +75,9 @@ type app struct {
 
 	accountOpen bool               // the dropdown of the account row shows
 	signIn      signInDialog       // signing in to a source
+	// signInPages are the windows of plugins' sign-in pages showing, by
+	// plugin. Main thread only.
+	signInPages map[string]*mygo.Window
 	naming      nameDialog         // the name of a playlist asked for
 	deleting    deleteDialog       // whether to delete a playlist, asked
 	toast       string             // a message to show once
@@ -214,6 +217,7 @@ func (a *app) makeSources() {
 	builtIn := newLibrary(a.local)
 	a.allLibs = []*library{builtIn}
 	plugin.SetOpenURL(mygo.Shell.OpenExternal)
+	plugin.SetWebSignIn(a.webSignIn)
 	a.plugins = plugin.Discover(pluginsDir(), userDataDir("plugin-data"))
 	for _, p := range a.plugins {
 		lib := newLibrary(p)
