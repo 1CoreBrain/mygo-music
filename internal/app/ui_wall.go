@@ -138,19 +138,23 @@ func (a *app) wallSong(c *ui.Context, tr *music.Track, art *artwork, top, h floa
 		// the wall is what the pointer moves.
 		size := h - 48
 		radius := a.npRadius(c, 16, size)
-		cov := ui.Box(c.Key(coverKey{tr.ID, 0})).Size(size, size).Radius(radius).Shadow(0, 24, 50, -12, ui.RGBA(0, 0, 0, 0.55))
-		// It flies out of the bar's cover as Now Playing opens.
-		a.npMorph(c, cov)
-		scale := float32(1)
-		if !pl.Playing() {
-			scale = 0.92
-		}
-		a.npBreathe(cov, scale)
-		in := artIn(cov, bitmap(art))
-		if in < 1 {
-			cov.Background(white.Alpha(0.08))
-		}
-		cov.Children(func() { artImage(c, bitmap(art), radius, in) })
+		// It flies out of the bar's cover as Now Playing opens, and
+		// breathes within: two boxes, for the breath to scale it about its
+		// middle, where the flight scales it about its corner.
+		fly := ui.Box(c.Key(coverKey{tr.ID, 0})).Size(size, size).Shrink(0)
+		a.npMorph(c, fly).Children(func() {
+			cov := ui.Box(c).Fill().Radius(radius).Shadow(0, 24, 50, -12, ui.RGBA(0, 0, 0, 0.55))
+			scale := float32(1)
+			if !pl.Playing() {
+				scale = 0.92
+			}
+			a.npBreathe(cov, scale)
+			in := artIn(cov, bitmap(art))
+			if in < 1 {
+				cov.Background(white.Alpha(0.08))
+			}
+			cov.Children(func() { artImage(c, bitmap(art), radius, in) })
+		})
 		a.npRise(ui.Column(c).Width(440).Shrink(1).MinWidth(0).Gap(4), 1).Children(func() {
 			if r := pl.Radio(); r != "" {
 				a.radioChip(c, r)
