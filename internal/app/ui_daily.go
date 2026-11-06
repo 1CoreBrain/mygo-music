@@ -80,7 +80,7 @@ func (a *app) featureCard(c *ui.Context, sec *music.Section, pageID string, at i
 			if showStack {
 				cx = r.X + r.W - dailyPadX - stackWidth + sleeveLeft + sleeveSize/2 + recordOut(out)
 			}
-			drawDailyBackdrop(p, r, backdrop, deep, rich, glow, cx, float32(spin.angle), sweep)
+			drawDailyBackdrop(p, r, backdrop, deep, rich, glow, cx, float32(spin.ripple), sweep)
 			// The day, set huge and faint after the words, cut off by the
 			// foot, where the covers leave it room.
 			if showDay {
@@ -166,10 +166,10 @@ func dailyColors(art *artwork) (deep, rich, glow ui.Color) {
 
 // drawDailyBackdrop paints the daily card in r: a gradient of the cover's
 // colors, the cover itself blurred faintly through it, a glow where the
-// record turns at cx, and grooves rippling out from it, which travel as
-// the record turns to angle; and, as sweep goes from 0 to 1, a sheen
-// crossing it.
-func drawDailyBackdrop(p *ui.Painter, r ui.Rect, blurred *ui.Bitmap, deep, rich, glow ui.Color, cx, angle, sweep float32) {
+// record turns at cx, and grooves rippling out from it, ripple points
+// past where they start; and, as sweep goes from 0 to 1, a sheen crossing
+// it.
+func drawDailyBackdrop(p *ui.Painter, r ui.Rect, blurred *ui.Bitmap, deep, rich, glow ui.Color, cx, ripple, sweep float32) {
 	cy := r.Y + r.H/2
 	p.Clip(r, dailyRadius, func() {
 		p.FillGradient(r, ui.LinearGradient{Angle: 100, Oklab: true, Stops: []ui.GradientStop{
@@ -185,12 +185,11 @@ func drawDailyBackdrop(p *ui.Painter, r ui.Rect, blurred *ui.Bitmap, deep, rich,
 		// The glow behind the record, and light from above.
 		p.Shadow(ui.Rect{X: cx - 60, Y: cy - 60, W: 120, H: 120}, 60, 0, 0, 140, 30, glow.Alpha(0.32))
 		p.Shadow(ui.Rect{X: r.X + r.W*0.3, Y: r.Y - 80, W: r.W * 0.4, H: 40}, 20, 0, 0, 120, 0, white.Alpha(0.08))
-		// Grooves rippling out, fainter as they go, travelling a groove a
-		// turn by whole pixels of the screen, which the rings are drawn
-		// at: the card around the record is drawn again only as they move
-		// one, not for each frame the record turns.
-		const gap = 18
-		off := float32(math.Round(float64(angle/360*gap*p.Scale()))) / p.Scale()
+		// Grooves rippling out, fainter as they go, by whole points: the
+		// card around the record is drawn again only as they move one, not
+		// for each frame the record turns.
+		off := float32(math.Floor(float64(ripple)))
+		const gap = rippleGap
 		for rr := float32(recordSize/2+6) + off; rr < r.W; rr += gap {
 			a := 0.05 * (1 - (rr-recordSize/2)/(r.H*1.6))
 			if a <= 0.004 {
@@ -220,13 +219,25 @@ func b2f(b bool) float32 {
 	return 0
 }
 
-// spinState turns the daily card's record: its angle, in degrees, and how
-// fast it turns, as a part of a turntable's speed, which eases up and
-// glides to a stop.
+// spinState turns the daily card's record: its angle, in degrees, how far
+// the grooves around it have rippled out, up to a groove, and how fast it
+// turns, as a part of a turntable's speed, which eases up and glides to a
+// stop.
 type spinState struct {
-	angle, speed float64
-	last         time.Time
+	angle, ripple, speed float64
+	last                 time.Time
 }
+
+// The grooves around the record are rippleGap apart, and ripple out a
+// groove every ripplePeriod at a turntable's speed. Each step they take
+// redraws most of the card, in each of the window's buffers in turn: at a
+// groove a turn, 1.8 seconds, by pixels of a Retina display, they took 20
+// steps a second while the card's songs played; by points, a groove in 6
+// seconds, they take 3.
+const (
+	rippleGap    = 18
+	ripplePeriod = 6.0 // seconds
+)
 
 // step turns the record on to now, its speed easing to to, and reports
 // whether it still turns.
@@ -242,6 +253,7 @@ func (s *spinState) step(now time.Time, to float64) bool {
 	}
 	// 33⅓ turns a minute.
 	s.angle = math.Mod(s.angle+s.speed*dt*200, 360)
+	s.ripple = math.Mod(s.ripple+s.speed*dt*rippleGap/ripplePeriod, rippleGap)
 	return s.speed > 0
 }
 
