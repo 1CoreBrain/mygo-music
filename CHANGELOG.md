@@ -2,6 +2,17 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.9] - 2026-11-06
+
+### Added
+
+- Check a plugin for updates whenever you like, from its ⋯ menu in Settings > Plugins, instead of waiting for the daily check. Its row says whether it's up to date.
+- A plugin's repository in Settings > Plugins is a link to it on GitHub.
+
+### Changed
+
+- The warning about a plugin starting programs is no longer shown in red.
+
 ## [0.1.8] - 2026-11-06
 
 ### Added
@@ -86,6 +97,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.9]: https://github.com/egoist/mygo-music/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/egoist/mygo-music/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/egoist/mygo-music/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/egoist/mygo-music/compare/v0.1.5...v0.1.6
