@@ -2,44 +2,47 @@
 # Linux, signs them and their updates, and uploads them to a draft
 # release of the tag, which is published by hand: installed apps update
 # to it then. Running the workflow by hand, from the Actions tab or with
-# `gh workflow run release.yml -f tag=v0.2.0`, does the same for a tag
-# that's already pushed, building the tag's code with this workflow.
+# `gh workflow run release.yml`, does the same for the version in
+# mygo.json of the branch it runs on, tagging that commit when the tag
+# isn't there yet, and building the tag when it is.
 name: Release
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Tag to release, such as v0.2.0
-        required: true
-
-env:
-  TAG: ${{ inputs.tag || github.ref_name }}
 
 permissions:
-  contents: write # the draft release, and the uploads to it
+  contents: write # the tag, the draft release, and the uploads to it
 
 jobs:
   draft-release:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: refs/tags/${{ env.TAG }}
-      # mygo build uploads to the release of mygo.json's version, whichever
-      # tag the workflow is for.
-      - name: Check the version
+      # mygo build uploads to the release of mygo.json's version, so that's
+      # the tag. A tag pushed by the workflow's own token starts no other
+      # run.
+      - name: Find the tag
+        id: tag
         run: |
-          version="v$(jq -r .version mygo.json)"
-          if [ "$TAG" != "$version" ]; then
-            echo "::error::$TAG doesn't match the version of mygo.json, $version"
-            exit 1
+          tag="v$(jq -r .version mygo.json)"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            if [ "$GITHUB_REF_NAME" != "$tag" ]; then
+              echo "::error::$GITHUB_REF_NAME doesn't match the version of mygo.json, $tag"
+              exit 1
+            fi
+          elif [ -z "$(git ls-remote --tags origin "refs/tags/$tag")" ]; then
+            git tag "$tag"
+            git push origin "refs/tags/$tag"
           fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - name: Create the draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
@@ -60,7 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: refs/tags/${{ env.TAG }}
+          ref: refs/tags/${{ needs.draft-release.outputs.tag }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
