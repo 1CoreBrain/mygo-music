@@ -896,6 +896,7 @@ func TestSignInShowsPrompt(t *testing.T) {
 		return &music.Account{ID: "1", Name: "Me"}, nil
 	}
 	lib := addFake(a, src)
+	a.homeLoading = true // for the dialog's Sign In to be the one that shows
 	a.promptSignIn(lib)
 	tt := ui.NewTester(a.view, 1200, 800)
 	settled(tt)

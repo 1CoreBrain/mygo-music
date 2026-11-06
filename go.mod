@@ -8,7 +8,7 @@ require (
 	github.com/MoeForge/moejs v0.1.0-alpha.11
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/ebitengine/purego v0.11.1
-	github.com/egoist/mygo v0.7.1-0.20261027023711-da3657e7f86a
+	github.com/egoist/mygo v0.7.5-0.20261106083033-b466c5666fb3
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/mewkiz/flac v1.0.14
