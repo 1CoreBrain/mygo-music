@@ -2,6 +2,12 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.12] - 2026-11-07
+
+### Fixed
+
+- On Linux, signing in to a plugin that shows its service's sign-in page no longer closes the whole app.
+
 ## [0.1.11] - 2026-11-07
 
 ### Changed
@@ -114,6 +120,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.12]: https://github.com/egoist/mygo-music/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/egoist/mygo-music/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/egoist/mygo-music/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/egoist/mygo-music/compare/v0.1.8...v0.1.9
