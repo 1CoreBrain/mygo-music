@@ -260,6 +260,7 @@ func TestFlickNowPlayingDownCloses(t *testing.T) {
 // still hid its own, which blinked.
 func TestClosingCoverLandsWithoutABlink(t *testing.T) {
 	a := newTestApp()
+	a.settings.GrowFromCover = true
 	a.pl.Cue(framesTracks(a))
 	a.pl.SetLyrics(nil)
 	a.nowPlaying, a.npPane = true, paneQueue
@@ -284,24 +285,30 @@ func TestClosingCoverLandsWithoutABlink(t *testing.T) {
 	}
 }
 
-// With Grow From the Cover off, Now Playing fades in over the whole window
-// as it opens, rather than growing out of the bar's cover, far from the
-// top of the window at first.
-func TestNowPlayingFadesInWithoutGrowing(t *testing.T) {
-	// opening is the window's top right corner, a little way into opening.
-	opening := func(grow bool) (before, during [3]uint32) {
+// Now Playing slides up from below the window as it opens, as it is,
+// rather than fading in, unless it grows out of the bar's cover, which
+// leaves the top of the window alone at first.
+func TestNowPlayingSlidesUpUnlessItGrows(t *testing.T) {
+	// opening is the window's top right and bottom right corners, before and
+	// a little way into opening, and how far below its place the queue's
+	// title is then.
+	opening := func(grow bool) (before, during [2][3]uint32, below float32) {
 		a := newTestApp()
 		a.settings.GrowFromCover = grow
 		a.pl.Cue([]music.Track{song("1", "宝船", "DOUDOU")})
 		a.pl.SetLyrics(nil)
+		a.npPane = paneQueue
 		tt := ui.NewTester(a.view, 1200, 800)
 		tt.SetDark(false)
 		tt.Frame()
-		at := func() [3]uint32 {
+		at := func() (px [2][3]uint32) {
 			img := tt.Image()
 			sc := float32(img.Bounds().Dx()) / 1200
-			r, g, b, _ := img.At(int(1100*sc), int(60*sc)).RGBA()
-			return [3]uint32{r, g, b}
+			for i, y := range []float32{60, 780} {
+				r, g, b, _ := img.At(int(1100*sc), int(y*sc)).RGBA()
+				px[i] = [3]uint32{r, g, b}
+			}
+			return px
 		}
 		before = at()
 		a.nowPlaying = true
@@ -310,12 +317,27 @@ func TestNowPlayingFadesInWithoutGrowing(t *testing.T) {
 		tt.Frame()
 		tt.Advance(60 * time.Millisecond)
 		tt.Frame()
-		return before, at()
+		during = at()
+		mid, _ := tt.Find("Up Next")
+		tt.Advance(time.Second)
+		tt.Frame()
+		rest, ok := tt.Find("Up Next")
+		if !ok {
+			t.Fatal("now playing did not open")
+		}
+		return before, during, mid.Y - rest.Y
 	}
-	if before, during := opening(true); before != during {
-		t.Fatalf("growing, the top right changed at once: %v to %v", before, during)
+	if before, during, _ := opening(true); before[0] != during[0] {
+		t.Fatalf("growing, the top right changed at once: %v to %v", before[0], during[0])
 	}
-	if before, during := opening(false); before == during {
-		t.Errorf("fading, the top right did not change: %v", before)
+	before, during, below := opening(false)
+	// Its backdrop is dark, where the bar under it is light: half faded
+	// in, it would be between the two.
+	light := func(px [3]uint32) uint32 { return (px[0] + px[1] + px[2]) / 3 }
+	if light(during[1]) > light(before[1])/2 {
+		t.Errorf("sliding, the bottom right went from %v to only %v: not covered, or not yet all there", before[1], during[1])
+	}
+	if below < 100 {
+		t.Errorf("sliding, the queue was only %v below its place", below)
 	}
 }
