@@ -994,10 +994,9 @@ func TestSettingsAllowPrograms(t *testing.T) {
 	if err := settings.Click("Stop Allowing"); err != nil {
 		t.Fatal(err)
 	}
-	runPost(t, ch)
-	if src.Granted() {
-		t.Fatal("still allowed after stopping")
-	}
+	// The source loading again after it was allowed posts too, and can come
+	// before the plugin is told to stop.
+	until(t, ch, func() bool { return !src.Granted() })
 }
 
 // guardedSource is a fake source with permissions, as a plugin has.
