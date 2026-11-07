@@ -2,6 +2,16 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.19] - 2026-11-07
+
+### Added
+
+- Plugins can list `requestHeaders` in plugin.json: headers, such as a session's cookie, that the app sends with the plugin's pictures and audio, so covers kept behind a sign-in, as fnOS Music's are, show.
+
+### Fixed
+
+- Headers a plugin gives for a stream no longer go on to another host the stream redirects to.
+
 ## [0.1.18] - 2026-11-07
 
 ### Added
@@ -167,6 +177,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.19]: https://github.com/egoist/mygo-music/compare/v0.1.18...v0.1.19
 [0.1.18]: https://github.com/egoist/mygo-music/compare/v0.1.17...v0.1.18
 [0.1.17]: https://github.com/egoist/mygo-music/compare/v0.1.16...v0.1.17
 [0.1.16]: https://github.com/egoist/mygo-music/compare/v0.1.15...v0.1.16
