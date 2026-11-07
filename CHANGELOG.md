@@ -2,6 +2,24 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.20] - 2026-11-07
+
+### Added
+
+- A plugin's picture URLs can say where the size goes with `{size}`, such as `?param={size}y{size}`, and the app fetches each cover the size it shows, so rows of covers take much less memory and come in faster.
+- Settings > Experiments has Grow From the Cover, for Now Playing to open out of the player bar's cover as before.
+
+### Changed
+
+- Now Playing slides up from the bottom of the window as it opens, and back down as it closes.
+
+### Fixed
+
+- A plugin's page that changes as you play, such as songs played lately, shows what's new when you open it again a while later, without restarting the app.
+- Big covers that come only large are decoded within a memory budget, and the app gives memory back once they're shown and when the window hides.
+- A plugin that reads its storage or settings at its top level no longer hangs as it starts.
+- The button that saves a playlist's new name reads 保存 in Chinese, not 收藏.
+
 ## [0.1.19] - 2026-11-07
 
 ### Added
@@ -177,6 +195,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.20]: https://github.com/egoist/mygo-music/compare/v0.1.19...v0.1.20
 [0.1.19]: https://github.com/egoist/mygo-music/compare/v0.1.18...v0.1.19
 [0.1.18]: https://github.com/egoist/mygo-music/compare/v0.1.17...v0.1.18
 [0.1.17]: https://github.com/egoist/mygo-music/compare/v0.1.16...v0.1.17
