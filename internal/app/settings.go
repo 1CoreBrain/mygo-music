@@ -41,6 +41,12 @@ type settings struct {
 	// NotchGreeted says the notch showed itself, once, as the first song
 	// played (greet).
 	NotchGreeted bool `json:"notchGreeted"`
+	// DesktopLyrics shows the line being sung over the desktop, in a strip of
+	// its own over every window: the listener turns it on.
+	DesktopLyrics bool `json:"desktopLyrics"`
+	// DesktopLyricsLocked lets the pointer through that strip to what is under
+	// it, so that it can't be moved by accident.
+	DesktopLyricsLocked bool `json:"desktopLyricsLocked"`
 	// Quality is what's asked of sources: standard, high or lossless. A source
 	// may ignore it.
 	Quality string `json:"quality"`

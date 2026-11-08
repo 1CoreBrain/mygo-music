@@ -55,10 +55,12 @@ type route struct {
 type app struct {
 	win   *mygo.Window
 	notch *notch
-	tray  *mygo.Tray // the icon in the menu bar or notification area, while it shows
-	art   *artCache
-	pl    *player.Player
-	pal   palette
+	// desktopLyric is the lyric strip over the desktop (desktopLyric).
+	desktopLyric *desktopLyric
+	tray         *mygo.Tray // the icon in the menu bar or notification area, while it shows
+	art          *artCache
+	pl           *player.Player
+	pal          palette
 
 	// libs are the sources, the built-in one first, and what the app has of
 	// each. The active one's is embedded: a.mine is what the active source
@@ -193,6 +195,9 @@ func (a *app) redraw() {
 	}
 	if a.notch != nil && a.notch.win != nil {
 		a.notch.win.Invalidate()
+	}
+	if a.desktopLyric != nil && a.desktopLyric.win != nil {
+		a.desktopLyric.win.Invalidate()
 	}
 	if a.settingsWin != nil {
 		a.settingsWin.Invalidate()
@@ -379,6 +384,8 @@ func Run() error {
 		if runtime.GOOS == "darwin" {
 			a.notch = newNotch(a)
 		}
+		// The lyric strip is every platform's, over the desktop.
+		a.desktopLyric = newDesktopLyric(a)
 		// From the menu bar alone, the Dock icon shows while the window
 		// does.
 		a.syncDock()

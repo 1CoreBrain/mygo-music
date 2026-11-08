@@ -73,6 +73,10 @@ func (a *app) changed() {
 	if a.notch != nil {
 		a.notch.setEnabled(a.settings.Notch)
 	}
+	if a.desktopLyric != nil {
+		a.desktopLyric.setEnabled(a.settings.DesktopLyrics)
+		a.desktopLyric.setLocked(a.settings.DesktopLyricsLocked)
+	}
 	a.redraw()
 }
 
@@ -397,6 +401,14 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 			})
 		})
 	}
+
+	add("lyrics", T("Desktop Lyrics"), iconLyrics, func(row settingsRow, block settingsBlock) {
+		row(T("Show Desktop Lyrics"), T("A strip over the desktop, with the line being sung and the one after it; drag its corner to make it bigger"), func() {
+			if ui.Switch(c.Key("desktop-lyrics"), &s.DesktopLyrics).Label(T("Show Desktop Lyrics")).Changed() {
+				a.changed()
+			}
+		})
+	})
 
 	add("playback", T("Playback"), iconVolume, func(row settingsRow, block settingsBlock) {
 		row(T("Quality"), T("What's asked of plugins that have a choice, from the next song on"), func() {
