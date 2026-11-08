@@ -2,6 +2,12 @@ package i18n
 
 // zhCN is the app's text in Simplified Chinese, by its English.
 var zhCN = map[string]string{
+	"Desktop Lyrics":      "桌面歌词",
+	"Show Desktop Lyrics": "显示桌面歌词",
+	"A strip over the desktop, with the line being sung and the one after it; drag its corner to make it bigger": "浮在桌面上的歌词条，显示正在唱的这句和下一句；拖动角落可以放大",
+	"Lock Desktop Lyrics":          "锁定桌面歌词",
+	"Unlock Desktop Lyrics":        "解锁桌面歌词",
+	"Resize Desktop Lyrics":        "调整桌面歌词大小",
 	"%.1f GB used":                 "已用 %.1f GB",
 	"%d MB used":                   "已用 %d MB",
 	"%d albums":                    "%d 张专辑",

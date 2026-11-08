@@ -69,6 +69,9 @@ func (a *app) setMenu() {
 				a.showMain()
 				a.nowPlaying = !a.nowPlaying && a.pl.Current() != nil
 			})},
+			mygo.Separator(),
+			{Label: T("Desktop Lyrics"), Click: run(a.toggleDesktopLyrics)},
+			{Label: T("Lock Desktop Lyrics"), Click: run(a.toggleDesktopLyricLock)},
 		}},
 		{Label: T("Window"), Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleMinimize, Label: T("Minimize")},
