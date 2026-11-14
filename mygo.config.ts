@@ -8,9 +8,11 @@ export default ({ command }: { command: string }) => ({
   version: "0.1.22",
   out: "build",
   urlSchemes: [command === "dev" ? "mygo-music-dev" : "mygo-music"],
+  // The fork's own updates: its releases, signed with its key (mygo keygen),
+  // kept as MYGO_UPDATER_PRIVATE_KEY in the repository's secrets.
   updates: {
-    publicKey: "WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=",
-    github: "egoist/mygo-music",
+    publicKey: "qZgzLRaE73nUZ73fx6s+3V64KmhFnXCCiTjlWmhlC/I=",
+    github: "1CoreBrain/mygo-music",
   },
   macos: {
     icon: "icon/AppIcon.icon",
